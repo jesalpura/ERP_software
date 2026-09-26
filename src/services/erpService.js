@@ -69,12 +69,120 @@ const formatFaculty = (f) => ({
   punchTime: f.punch_time || f.punchTime,
   status: f.status,
   salary: Number(f.salary || 0),
-  honorarium: Number(f.honorarium || 0),
-  disbursed: Boolean(f.disbursed),
   avatar: f.avatar,
   assignedBatches: f.assigned_batches || f.assignedBatches || [],
   prReviewsCount: f.pr_reviews_count || f.prReviewsCount || 0
 });
+
+// Universal Multi-Device & Multi-Browser Realtime Engine
+class UniversalRealtimeEngine {
+  constructor() {
+    this.listeners = new Set();
+    this.ws = null;
+    this.supabaseChannel = null;
+    this.bc = typeof window !== 'undefined' && 'BroadcastChannel' in window
+      ? new BroadcastChannel('tcit_erp_universal_channel_v3')
+      : null;
+
+    if (this.bc) {
+      this.bc.onmessage = (event) => {
+        if (event.data?.type && event.data?.payload !== undefined) {
+          this.notifyListeners(event.data.type, event.data.payload);
+        }
+      };
+    }
+
+    this.initWebSocketRelay();
+    this.initSupabaseRealtime();
+  }
+
+  initWebSocketRelay() {
+    if (typeof window === 'undefined') return;
+    try {
+      // Free, zero-config WebSocket relay for cross-device multi-browser sync
+      const ws = new WebSocket('wss://socketsbay.com/wss/v2/1/demo/');
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg && msg.tcit_event && msg.tcit_payload !== undefined) {
+            this.notifyListeners(msg.tcit_event, msg.tcit_payload);
+          }
+        } catch (e) {}
+      };
+      ws.onclose = () => {
+        setTimeout(() => this.initWebSocketRelay(), 3500);
+      };
+      ws.onerror = () => {};
+      this.ws = ws;
+    } catch (e) {}
+  }
+
+  initSupabaseRealtime() {
+    if (!isSupabaseConfigured || !supabase) return;
+    try {
+      this.supabaseChannel = supabase.channel('tcit_erp_global_realtime_v3', {
+        config: { broadcast: { self: true } }
+      });
+
+      this.supabaseChannel.on('broadcast', { event: '*' }, ({ event, payload }) => {
+        if (event && payload !== undefined) {
+          this.notifyListeners(event, payload);
+        }
+      });
+
+      this.supabaseChannel.subscribe();
+    } catch (err) {
+      console.warn('Supabase realtime init error:', err);
+    }
+  }
+
+  broadcast(eventType, payload) {
+    // 1. Dispatch locally in current window
+    this.notifyListeners(eventType, payload);
+
+    // 2. Dispatch via BroadcastChannel (same machine tabs)
+    if (this.bc) {
+      try {
+        this.bc.postMessage({ type: eventType, payload });
+      } catch (e) {}
+    }
+
+    // 3. Dispatch via Persistent Supabase Realtime Channel (cross-device websockets)
+    if (this.supabaseChannel) {
+      try {
+        this.supabaseChannel.send({
+          type: 'broadcast',
+          event: eventType,
+          payload
+        });
+      } catch (e) {}
+    }
+
+    // 4. Dispatch via Public WebSocket Relay (cross-device fallback websockets)
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      try {
+        this.ws.send(JSON.stringify({ tcit_event: eventType, tcit_payload: payload }));
+      } catch (e) {}
+    }
+  }
+
+  notifyListeners(eventType, payload) {
+    this.listeners.forEach((callback) => {
+      try {
+        callback(eventType, payload);
+      } catch (e) {}
+    });
+  }
+
+  subscribe(callback) {
+    this.listeners.add(callback);
+    return () => {
+      this.listeners.delete(callback);
+    };
+  }
+}
+
+export const realtimeEngine = new UniversalRealtimeEngine();
 
 export const erpService = {
   // 1. STUDENTS
@@ -350,233 +458,88 @@ export const erpService = {
 
   // 9. LIVE QR ATTENDANCE BROADCAST & REALTIME SCANNING
   broadcastQrSession(qrSessionPayload) {
-    if (!isSupabaseConfigured || !supabase) return;
-    const channel = supabase.channel('attendance-qr-live');
-    channel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        channel.send({
-          type: 'broadcast',
-          event: 'qr-session-created',
-          payload: qrSessionPayload
-        });
-      }
-    });
+    realtimeEngine.broadcast('qr-session-created', qrSessionPayload);
   },
 
   broadcastQrScan(studentId, code) {
-    if (!isSupabaseConfigured || !supabase) return;
-    const channel = supabase.channel('attendance-qr-live');
-    channel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        channel.send({
-          type: 'broadcast',
-          event: 'qr-student-scanned',
-          payload: { studentId, code, timestamp: Date.now() }
-        });
-      }
-    });
+    realtimeEngine.broadcast('qr-student-scanned', { studentId, code, timestamp: Date.now() });
   },
 
   subscribeToQrBroadcast(callbacks = {}) {
-    if (!isSupabaseConfigured || !supabase) return () => {};
-
-    const qrChannel = supabase
-      .channel('attendance-qr-live')
-      .on('broadcast', { event: 'qr-session-created' }, ({ payload }) => {
-        if (callbacks.onQrCreated) callbacks.onQrCreated(payload);
-      })
-      .on('broadcast', { event: 'qr-student-scanned' }, ({ payload }) => {
-        if (callbacks.onStudentScanned) callbacks.onStudentScanned(payload);
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(qrChannel);
-    };
+    return realtimeEngine.subscribe((event, payload) => {
+      if (event === 'qr-session-created' && callbacks.onQrCreated) callbacks.onQrCreated(payload);
+      if (event === 'qr-student-scanned' && callbacks.onStudentScanned) callbacks.onStudentScanned(payload);
+    });
   },
 
   // 10. ADMIN ESCALATION & COMPLAINTS/REQUESTS REALTIME BROADCAST CHANNELS
   broadcastTicketCreated(ticketPayload) {
-    if (!isSupabaseConfigured || !supabase) return;
-    const channel = supabase.channel('admin-tickets-channel');
-    channel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        channel.send({
-          type: 'broadcast',
-          event: 'ticket-created',
-          payload: ticketPayload
-        });
-      }
-    });
+    realtimeEngine.broadcast('ticket-created', ticketPayload);
   },
 
   broadcastTicketUpdated(ticketPayload) {
-    if (!isSupabaseConfigured || !supabase) return;
-    const channel = supabase.channel('admin-tickets-channel');
-    channel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        channel.send({
-          type: 'broadcast',
-          event: 'ticket-updated',
-          payload: ticketPayload
-        });
-      }
-    });
+    realtimeEngine.broadcast('ticket-updated', ticketPayload);
   },
 
   subscribeToTicketBroadcast(callbacks = {}) {
-    if (!isSupabaseConfigured || !supabase) return () => {};
-
-    const ticketChannel = supabase
-      .channel('admin-tickets-channel')
-      .on('broadcast', { event: 'ticket-created' }, ({ payload }) => {
-        if (callbacks.onTicketCreated) callbacks.onTicketCreated(payload);
-      })
-      .on('broadcast', { event: 'ticket-updated' }, ({ payload }) => {
-        if (callbacks.onTicketUpdated) callbacks.onTicketUpdated(payload);
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(ticketChannel);
-    };
+    return realtimeEngine.subscribe((event, payload) => {
+      if (event === 'ticket-created' && callbacks.onTicketCreated) callbacks.onTicketCreated(payload);
+      if (event === 'ticket-updated' && callbacks.onTicketUpdated) callbacks.onTicketUpdated(payload);
+    });
   },
 
   // 11. CAMPUS NOTICES REALTIME BROADCAST
   broadcastNotice(noticePayload) {
-    if (!isSupabaseConfigured || !supabase) return;
-    const channel = supabase.channel('campus-notices-broadcast');
-    channel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        channel.send({
-          type: 'broadcast',
-          event: 'notice-published',
-          payload: noticePayload
-        });
-      }
-    });
+    realtimeEngine.broadcast('notice-published', noticePayload);
   },
 
   subscribeToNoticeBroadcast(onNoticePublished) {
-    if (!isSupabaseConfigured || !supabase) return () => {};
-
-    const noticeChannel = supabase
-      .channel('campus-notices-broadcast')
-      .on('broadcast', { event: 'notice-published' }, ({ payload }) => {
-        if (onNoticePublished) onNoticePublished(payload);
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(noticeChannel);
-    };
+    return realtimeEngine.subscribe((event, payload) => {
+      if (event === 'notice-published' && onNoticePublished) onNoticePublished(payload);
+    });
   },
 
   // 12. FACULTY WEEKLY SCHEDULE REALTIME BROADCAST
   broadcastScheduleUpdate(schedulePayload) {
-    if (!isSupabaseConfigured || !supabase) return;
-    const channel = supabase.channel('faculty-weekly-schedule-channel');
-    channel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        channel.send({
-          type: 'broadcast',
-          event: 'schedule-updated',
-          payload: schedulePayload
-        });
-      }
-    });
+    realtimeEngine.broadcast('schedule-updated', schedulePayload);
   },
 
   subscribeToScheduleBroadcast(onScheduleUpdated) {
-    if (!isSupabaseConfigured || !supabase) return () => {};
-
-    const scheduleChannel = supabase
-      .channel('faculty-weekly-schedule-channel')
-      .on('broadcast', { event: 'schedule-updated' }, ({ payload }) => {
-        if (onScheduleUpdated) onScheduleUpdated(payload);
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(scheduleChannel);
-    };
+    return realtimeEngine.subscribe((event, payload) => {
+      if (event === 'schedule-updated' && onScheduleUpdated) onScheduleUpdated(payload);
+    });
   },
 
-  // 13. FACULTY REALTIME STATUS BROADCAST (IN LAB, READY, OFFICE HOURS, ON LEAVE)
+  // 13. FACULTY REALTIME STATUS BROADCAST
   broadcastFacultyStatus(facultyId, status) {
     if (isSupabaseConfigured && supabase) {
       supabase.from('faculty').update({ status }).eq('id', facultyId).then(({ error }) => {
         if (error) console.error('Error updating faculty status in DB:', error);
       });
     }
-
-    if (!isSupabaseConfigured || !supabase) return;
-    const channel = supabase.channel('faculty-status-broadcast');
-    channel.subscribe((statusChannel) => {
-      if (statusChannel === 'SUBSCRIBED') {
-        channel.send({
-          type: 'broadcast',
-          event: 'faculty-status-changed',
-          payload: { facultyId, status, timestamp: Date.now() }
-        });
-      }
-    });
+    realtimeEngine.broadcast('faculty-status-changed', { facultyId, status, timestamp: Date.now() });
   },
 
   subscribeToFacultyStatusBroadcast(onStatusChanged) {
-    if (!isSupabaseConfigured || !supabase) return () => {};
-
-    const statusChannel = supabase
-      .channel('faculty-status-broadcast')
-      .on('broadcast', { event: 'faculty-status-changed' }, ({ payload }) => {
-        if (onStatusChanged) onStatusChanged(payload);
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(statusChannel);
-    };
+    return realtimeEngine.subscribe((event, payload) => {
+      if (event === 'faculty-status-changed' && onStatusChanged) onStatusChanged(payload);
+    });
   },
 
   // 13B. FACULTY SALARY DISBURSEMENT UPDATES & REALTIME BROADCAST
   async updateFacultyDisbursement(facultyId, disbursed) {
     if (isSupabaseConfigured && supabase) {
       try {
-        const { error } = await supabase
-          .from('faculty')
-          .update({ disbursed })
-          .eq('id', facultyId);
-        if (error) console.error('Error updating faculty disbursement in DB:', error);
-      } catch (err) {
-        console.error('Failed to update faculty disbursement:', err);
-      }
-
-      const channel = supabase.channel('faculty-disbursement-broadcast');
-      channel.subscribe((statusChannel) => {
-        if (statusChannel === 'SUBSCRIBED') {
-          channel.send({
-            type: 'broadcast',
-            event: 'faculty-disbursement-changed',
-            payload: { facultyId, disbursed, timestamp: Date.now() }
-          });
-        }
-      });
+        await supabase.from('faculty').update({ disbursed }).eq('id', facultyId);
+      } catch (err) {}
     }
+    realtimeEngine.broadcast('faculty-disbursement-changed', { facultyId, disbursed, timestamp: Date.now() });
   },
 
   subscribeToFacultyDisbursementBroadcast(onDisbursementChanged) {
-    if (!isSupabaseConfigured || !supabase) return () => {};
-
-    const disbursementChannel = supabase
-      .channel('faculty-disbursement-broadcast')
-      .on('broadcast', { event: 'faculty-disbursement-changed' }, ({ payload }) => {
-        if (onDisbursementChanged) onDisbursementChanged(payload);
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(disbursementChannel);
-    };
+    return realtimeEngine.subscribe((event, payload) => {
+      if (event === 'faculty-disbursement-changed' && onDisbursementChanged) onDisbursementChanged(payload);
+    });
   },
 
   // 14. REALTIME ALLOCATED PC TERMINALS & MESSAGES
@@ -589,196 +552,34 @@ export const erpService = {
   },
 
   broadcastPcMessage(msgPayload) {
-    // 1. Broadcast via local window CustomEvent
-    window.dispatchEvent(new CustomEvent('allocated-pc-message-sent', { detail: msgPayload }));
-
-    // 2. Broadcast via Browser BroadcastChannel API (Works cross-tab / cross-window on deployed origin)
-    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-      try {
-        const bc = new BroadcastChannel('tcit_erp_global_realtime');
-        bc.postMessage({ type: 'pc-message-sent', payload: msgPayload });
-        bc.close();
-      } catch (err) {
-        console.warn('BroadcastChannel error:', err);
-      }
-    }
-
-    // 3. Broadcast via Supabase Realtime Channel
-    if (!isSupabaseConfigured || !supabase) return;
-    const channel = supabase.channel('allocated-pc-communication-channel');
-    channel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        channel.send({
-          type: 'broadcast',
-          event: 'pc-message-sent',
-          payload: msgPayload
-        });
-      }
-    });
+    realtimeEngine.broadcast('pc-message-sent', msgPayload);
   },
 
   subscribeToPcMessages(onMessageReceived) {
-    const localHandler = (e) => {
-      if (onMessageReceived && e.detail) onMessageReceived(e.detail);
-    };
-    window.addEventListener('allocated-pc-message-sent', localHandler);
-
-    let bcListener = null;
-    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-      bcListener = new BroadcastChannel('tcit_erp_global_realtime');
-      bcListener.onmessage = (event) => {
-        if (event.data?.type === 'pc-message-sent' && onMessageReceived) {
-          onMessageReceived(event.data.payload);
-        }
-      };
-    }
-
-    if (!isSupabaseConfigured || !supabase) {
-      return () => {
-        window.removeEventListener('allocated-pc-message-sent', localHandler);
-        if (bcListener) bcListener.close();
-      };
-    }
-
-    const pcChannel = supabase
-      .channel('allocated-pc-communication-channel')
-      .on('broadcast', { event: 'pc-message-sent' }, ({ payload }) => {
-        if (onMessageReceived) onMessageReceived(payload);
-      })
-      .subscribe();
-
-    return () => {
-      window.removeEventListener('allocated-pc-message-sent', localHandler);
-      if (bcListener) bcListener.close();
-      supabase.removeChannel(pcChannel);
-    };
-  },
-
-  broadcastPcTerminalUpdate(updatedTerminal) {
-    window.dispatchEvent(new CustomEvent('allocated-pc-terminal-updated', { detail: updatedTerminal }));
-
-    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-      try {
-        const bc = new BroadcastChannel('tcit_erp_global_realtime');
-        bc.postMessage({ type: 'pc-terminal-updated', payload: updatedTerminal });
-        bc.close();
-      } catch (err) {
-        console.warn('BroadcastChannel error:', err);
-      }
-    }
-
-    if (!isSupabaseConfigured || !supabase) return;
-    const channel = supabase.channel('allocated-pc-terminal-channel');
-    channel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        channel.send({
-          type: 'broadcast',
-          event: 'pc-terminal-updated',
-          payload: updatedTerminal
-        });
-      }
+    return realtimeEngine.subscribe((event, payload) => {
+      if (event === 'pc-message-sent' && onMessageReceived) onMessageReceived(payload);
     });
   },
 
+  broadcastPcTerminalUpdate(updatedTerminal) {
+    realtimeEngine.broadcast('pc-terminal-updated', updatedTerminal);
+  },
+
   subscribeToPcTerminalUpdates(onTerminalUpdated) {
-    const localHandler = (e) => {
-      if (onTerminalUpdated && e.detail) onTerminalUpdated(e.detail);
-    };
-    window.addEventListener('allocated-pc-terminal-updated', localHandler);
-
-    let bcListener = null;
-    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-      bcListener = new BroadcastChannel('tcit_erp_global_realtime');
-      bcListener.onmessage = (event) => {
-        if (event.data?.type === 'pc-terminal-updated' && onTerminalUpdated) {
-          onTerminalUpdated(event.data.payload);
-        }
-      };
-    }
-
-    if (!isSupabaseConfigured || !supabase) {
-      return () => {
-        window.removeEventListener('allocated-pc-terminal-updated', localHandler);
-        if (bcListener) bcListener.close();
-      };
-    }
-
-    const terminalChannel = supabase
-      .channel('allocated-pc-terminal-channel')
-      .on('broadcast', { event: 'pc-terminal-updated' }, ({ payload }) => {
-        if (onTerminalUpdated) onTerminalUpdated(payload);
-      })
-      .subscribe();
-
-    return () => {
-      window.removeEventListener('allocated-pc-terminal-updated', localHandler);
-      if (bcListener) bcListener.close();
-      supabase.removeChannel(terminalChannel);
-    };
+    return realtimeEngine.subscribe((event, payload) => {
+      if (event === 'pc-terminal-updated' && onTerminalUpdated) onTerminalUpdated(payload);
+    });
   },
 
   // 15. REALTIME ASSIGNMENT SUBMISSIONS
   broadcastAssignmentSubmit(submissionPayload) {
-    window.dispatchEvent(new CustomEvent('assignment-submitted-event', { detail: submissionPayload }));
-
-    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-      try {
-        const bc = new BroadcastChannel('tcit_erp_global_realtime');
-        bc.postMessage({ type: 'assignment-submitted', payload: submissionPayload });
-        bc.close();
-      } catch (err) {
-        console.warn('BroadcastChannel error:', err);
-      }
-    }
-
-    if (!isSupabaseConfigured || !supabase) return;
-    const channel = supabase.channel('assignments-realtime-channel');
-    channel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        channel.send({
-          type: 'broadcast',
-          event: 'assignment-submitted',
-          payload: submissionPayload
-        });
-      }
-    });
+    realtimeEngine.broadcast('assignment-submitted', submissionPayload);
   },
 
   subscribeToAssignmentSubmissions(onSubmissionReceived) {
-    const localHandler = (e) => {
-      if (onSubmissionReceived && e.detail) onSubmissionReceived(e.detail);
-    };
-    window.addEventListener('assignment-submitted-event', localHandler);
-
-    let bcListener = null;
-    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-      bcListener = new BroadcastChannel('tcit_erp_global_realtime');
-      bcListener.onmessage = (event) => {
-        if (event.data?.type === 'assignment-submitted' && onSubmissionReceived) {
-          onSubmissionReceived(event.data.payload);
-        }
-      };
-    }
-
-    if (!isSupabaseConfigured || !supabase) {
-      return () => {
-        window.removeEventListener('assignment-submitted-event', localHandler);
-        if (bcListener) bcListener.close();
-      };
-    }
-
-    const asmChannel = supabase
-      .channel('assignments-realtime-channel')
-      .on('broadcast', { event: 'assignment-submitted' }, ({ payload }) => {
-        if (onSubmissionReceived) onSubmissionReceived(payload);
-      })
-      .subscribe();
-
-    return () => {
-      window.removeEventListener('assignment-submitted-event', localHandler);
-      if (bcListener) bcListener.close();
-      supabase.removeChannel(asmChannel);
-    };
+    return realtimeEngine.subscribe((event, payload) => {
+      if (event === 'assignment-submitted' && onSubmissionReceived) onSubmissionReceived(payload);
+    });
   }
 };
 

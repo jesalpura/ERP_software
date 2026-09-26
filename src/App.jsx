@@ -167,77 +167,79 @@ export default function App() {
     };
   }, []);
 
-  // Fetch initial live data from Supabase if configured
+  // Fetch initial live data and subscribe to universal real-time events
   useEffect(() => {
-    if (!isSupabaseConfigured) return;
-
     let isMounted = true;
-    setIsDataSyncing(true);
+    let unsubscribeDb = () => {};
 
-    async function loadBackendData() {
-      try {
-        const [fetchedStudents, fetchedTransactions, fetchedLabs, fetchedFaculty, fetchedExpenses, fetchedNotices, fetchedAssignments] = await Promise.all([
-          erpService.getStudents(),
-          erpService.getTransactions(),
-          erpService.getLabs(),
-          erpService.getFaculty(),
-          erpService.getExpenses(),
-          erpService.getNotices(),
-          erpService.getAssignments()
-        ]);
+    if (isSupabaseConfigured) {
+      setIsDataSyncing(true);
 
-        if (isMounted) {
-          if (fetchedStudents && fetchedStudents.length > 0) setStudents(fetchedStudents);
-          if (fetchedTransactions && fetchedTransactions.length > 0) setTransactions(fetchedTransactions);
-          if (fetchedLabs && fetchedLabs.length > 0) setLabs(fetchedLabs);
-          if (fetchedFaculty && fetchedFaculty.length > 0) setFaculty(fetchedFaculty);
-          if (fetchedExpenses && fetchedExpenses.length > 0) setExpenses(fetchedExpenses);
-          if (fetchedNotices && fetchedNotices.length > 0) setNotices(fetchedNotices);
-          if (fetchedAssignments && fetchedAssignments.length > 0) setAssignments(fetchedAssignments);
+      async function loadBackendData() {
+        try {
+          const [fetchedStudents, fetchedTransactions, fetchedLabs, fetchedFaculty, fetchedExpenses, fetchedNotices, fetchedAssignments] = await Promise.all([
+            erpService.getStudents(),
+            erpService.getTransactions(),
+            erpService.getLabs(),
+            erpService.getFaculty(),
+            erpService.getExpenses(),
+            erpService.getNotices(),
+            erpService.getAssignments()
+          ]);
+
+          if (isMounted) {
+            if (fetchedStudents && fetchedStudents.length > 0) setStudents(fetchedStudents);
+            if (fetchedTransactions && fetchedTransactions.length > 0) setTransactions(fetchedTransactions);
+            if (fetchedLabs && fetchedLabs.length > 0) setLabs(fetchedLabs);
+            if (fetchedFaculty && fetchedFaculty.length > 0) setFaculty(fetchedFaculty);
+            if (fetchedExpenses && fetchedExpenses.length > 0) setExpenses(fetchedExpenses);
+            if (fetchedNotices && fetchedNotices.length > 0) setNotices(fetchedNotices);
+            if (fetchedAssignments && fetchedAssignments.length > 0) setAssignments(fetchedAssignments);
+          }
+        } catch (err) {
+          console.error('Error loading data from Supabase backend:', err);
+        } finally {
+          if (isMounted) setIsDataSyncing(false);
         }
-      } catch (err) {
-        console.error('Error loading data from Supabase backend:', err);
-      } finally {
-        if (isMounted) setIsDataSyncing(false);
       }
+
+      loadBackendData();
+
+      // Subscribe to Supabase Realtime Postgres Changes
+      unsubscribeDb = erpService.subscribeToDatabaseChanges({
+        onStudentChange: (eventType, newStudent, oldStudent) => {
+          if (eventType === 'INSERT' && newStudent) {
+            setStudents((prev) => [newStudent, ...prev.filter(s => s.id !== newStudent.id)]);
+          } else if (eventType === 'UPDATE' && newStudent) {
+            setStudents((prev) => prev.map(s => s.id === newStudent.id ? newStudent : s));
+          } else if (eventType === 'DELETE' && oldStudent) {
+            setStudents((prev) => prev.filter(s => s.id !== oldStudent.id));
+          }
+        },
+        onTransactionChange: (eventType, newTx) => {
+          if (eventType === 'INSERT' && newTx) {
+            setTransactions((prev) => [newTx, ...prev.filter(t => t.id !== newTx.id)]);
+          }
+        },
+        onLabChange: (eventType, newLab) => {
+          if (newLab) {
+            setLabs((prev) => prev.map(l => l.id === newLab.id ? newLab : l));
+          }
+        },
+        onFacultyChange: (eventType, newFaculty) => {
+          if (newFaculty) {
+            setFaculty((prev) => prev.map(f => f.id === newFaculty.id ? newFaculty : f));
+          }
+        },
+        onNoticeChange: (eventType, newNotice) => {
+          if (eventType === 'INSERT' && newNotice) {
+            setNotices((prev) => [newNotice, ...prev]);
+          }
+        }
+      });
     }
 
-    loadBackendData();
-
-    // Subscribe to Supabase Realtime Postgres Changes
-    const unsubscribeDb = erpService.subscribeToDatabaseChanges({
-      onStudentChange: (eventType, newStudent, oldStudent) => {
-        if (eventType === 'INSERT' && newStudent) {
-          setStudents((prev) => [newStudent, ...prev.filter(s => s.id !== newStudent.id)]);
-        } else if (eventType === 'UPDATE' && newStudent) {
-          setStudents((prev) => prev.map(s => s.id === newStudent.id ? newStudent : s));
-        } else if (eventType === 'DELETE' && oldStudent) {
-          setStudents((prev) => prev.filter(s => s.id !== oldStudent.id));
-        }
-      },
-      onTransactionChange: (eventType, newTx) => {
-        if (eventType === 'INSERT' && newTx) {
-          setTransactions((prev) => [newTx, ...prev.filter(t => t.id !== newTx.id)]);
-        }
-      },
-      onLabChange: (eventType, newLab) => {
-        if (newLab) {
-          setLabs((prev) => prev.map(l => l.id === newLab.id ? newLab : l));
-        }
-      },
-      onFacultyChange: (eventType, newFaculty) => {
-        if (newFaculty) {
-          setFaculty((prev) => prev.map(f => f.id === newFaculty.id ? newFaculty : f));
-        }
-      },
-      onNoticeChange: (eventType, newNotice) => {
-        if (eventType === 'INSERT' && newNotice) {
-          setNotices((prev) => [newNotice, ...prev]);
-        }
-      }
-    });
-
-    // Subscribe to Supabase Realtime QR Attendance Broadcasts
+    // Always subscribe to Universal Multi-Device Realtime Broadcasts
     const unsubscribeQr = erpService.subscribeToQrBroadcast({
       onQrCreated: (sessionPayload) => {
         setActiveQrSession(sessionPayload);
