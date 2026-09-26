@@ -122,8 +122,9 @@ export default function StudentDashboard({
   // Toast State
   const [toastMessage, setToastMessage] = useState(null);
 
-  const showToast = (msg) => {
-    setToastMessage(msg);
+  const showToast = (msg, isError = false) => {
+    const text = typeof msg === 'string' ? msg : (msg?.message || String(msg));
+    setToastMessage({ text, isError });
     setTimeout(() => setToastMessage(null), 3500);
   };
 
@@ -236,7 +237,7 @@ export default function StudentDashboard({
     setIsScannerOpen(false);
     if (onRecordQrScan) {
       const res = onRecordQrScan(currentStudent.id, decodedText);
-      showToast(res.message);
+      showToast(res.message, !res.success);
     } else {
       showToast(`✅ Attendance recorded! Code scanned: ${decodedText}`);
     }
@@ -332,9 +333,15 @@ export default function StudentDashboard({
     <div className="flex flex-col gap-6 pb-12 font-sans">
       {/* Toast Alert */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-xl border border-slate-700 flex items-center gap-2 text-xs font-semibold animate-bounce">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          <span>{toastMessage}</span>
+        <div className={`fixed bottom-6 right-6 z-50 text-white px-4 py-3 rounded-2xl shadow-xl border flex items-center gap-2 text-xs font-semibold animate-bounce ${
+          toastMessage.isError ? 'bg-rose-900/95 border-rose-700 text-rose-100' : 'bg-slate-900 border-slate-700'
+        }`}>
+          {toastMessage.isError ? (
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+          ) : (
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          )}
+          <span>{toastMessage.text || toastMessage}</span>
         </div>
       )}
 

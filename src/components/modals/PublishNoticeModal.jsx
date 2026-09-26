@@ -81,7 +81,7 @@ export default function PublishNoticeModal({ isOpen, onClose, onPublishNotice })
           </div>
 
           {/* Category & Priority Grid */}
-          <div className="grid grid-cols-2 gap-3 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
             <div className="flex flex-col gap-1">
               <label className="font-bold text-slate-700">Notice Category</label>
               <select

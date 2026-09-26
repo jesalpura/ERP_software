@@ -31,6 +31,7 @@ import {
   BookOpen,
   ArrowUpRight,
   UserCheck,
+  UserX,
   QrCode,
   X,
   RefreshCw,
@@ -46,6 +47,8 @@ export default function FacultyDashboard({
   setActiveTab: parentSetActiveTab,
   activeQrSession,
   setActiveQrSession,
+  onEndQrSession,
+  onMarkStudentAttendance,
   complaintsAndRequests = [],
   onAddComplaintRequest,
   onUpdateComplaintRequest,
@@ -166,13 +169,16 @@ class StudentTerminal(models.Model):
       timer = setInterval(() => {
         setQrTimeLeft((prev) => prev - 1);
       }, 1000);
-    } else if (qrTimeLeft === 0 && activeQrSession) {
-      if (setActiveQrSession) {
+    } else if (qrTimeLeft === 0 && activeQrSession && activeQrSession.active) {
+      if (onEndQrSession) {
+        onEndQrSession();
+      } else if (setActiveQrSession) {
         setActiveQrSession((prev) => prev ? { ...prev, active: false } : null);
       }
+      showToast('QR session expired. Absent students attendance decreased (-2%).');
     }
     return () => clearInterval(timer);
-  }, [isQrModalOpen, qrTimeLeft, activeQrSession, setActiveQrSession]);
+  }, [isQrModalOpen, qrTimeLeft, activeQrSession, setActiveQrSession, onEndQrSession]);
 
   const handleGenerateQrCode = () => {
     setQrTimeLeft(60);
@@ -199,13 +205,30 @@ class StudentTerminal(models.Model):
     showToast(`Grade for ${student ? student.name : studentId} updated to ${newGrade}`);
   };
 
-  const handleToggleAttendance = (studentId) => {
+  const handleMarkPresent = (studentId) => {
+    if (onMarkStudentAttendance) {
+      onMarkStudentAttendance(studentId, 'present');
+    }
     setStudentAttendance((prev) => {
       const current = prev[studentId] || 85;
-      const nextVal = current >= 100 ? 75 : current + 5;
-      showToast(`Updated attendance to ${nextVal}%`);
+      const nextVal = Math.min(100, current + 2);
       return { ...prev, [studentId]: nextVal };
     });
+    const student = initialStudents.find((s) => s.id === studentId);
+    showToast(`Marked Present: ${student ? student.name : studentId} (+2% attendance)`);
+  };
+
+  const handleMarkAbsent = (studentId) => {
+    if (onMarkStudentAttendance) {
+      onMarkStudentAttendance(studentId, 'absent');
+    }
+    setStudentAttendance((prev) => {
+      const current = prev[studentId] || 85;
+      const nextVal = Math.max(0, current - 2);
+      return { ...prev, [studentId]: nextVal };
+    });
+    const student = initialStudents.find((s) => s.id === studentId);
+    showToast(`Marked Absent: ${student ? student.name : studentId} (-2% attendance)`);
   };
 
   const handleApprovePR = (prId) => {
@@ -988,7 +1011,7 @@ class StudentTerminal(models.Model):
             </div>
 
             {/* PC Nodes Grid */}
-            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-10 gap-3 pt-2">
+            <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-5 md:grid-cols-10 gap-2 sm:gap-3 pt-2">
               {activeLabTerminals.map((seat) => {
                 const isSelected = currentSeat?.pcNumber === seat.pcNumber;
                 const isHelp = seat.helpRequested;
@@ -1293,12 +1316,22 @@ class StudentTerminal(models.Model):
                     </td>
                     <td className="py-3.5 px-4 text-slate-600">{s.projectStatus}</td>
                     <td className="py-3.5 px-6 text-right">
-                      <button 
-                        onClick={() => handleToggleAttendance(s.id)}
-                        className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-bold transition-colors inline-flex items-center gap-1"
-                      >
-                        <UserCheck className="w-3 h-3" /> Punch
-                      </button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button 
+                          onClick={() => handleMarkPresent(s.id)}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[11px] font-bold transition-colors inline-flex items-center gap-1 border border-emerald-200"
+                          title="Mark Present (+2%)"
+                        >
+                          <UserCheck className="w-3 h-3" /> Present
+                        </button>
+                        <button 
+                          onClick={() => handleMarkAbsent(s.id)}
+                          className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-bold transition-colors inline-flex items-center gap-1 border border-rose-200"
+                          title="Mark Absent (-2%)"
+                        >
+                          <UserX className="w-3 h-3" /> Absent
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

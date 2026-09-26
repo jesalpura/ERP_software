@@ -244,7 +244,7 @@ export default function ComplaintsRequestsView({
       </div>
 
       {/* KPI Cards Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
             <Inbox className="w-5 h-5" />
@@ -591,7 +591,7 @@ export default function ComplaintsRequestsView({
 
             <form onSubmit={handleComposeSubmit} className="flex flex-col gap-4">
               {/* Recipient Role Picker */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => setComposeRecipientType('Faculty')}

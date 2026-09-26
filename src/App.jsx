@@ -344,13 +344,28 @@ export default function App() {
     subject: 'MERN Stack Web Dev',
     secondsLeft: 60,
     active: true,
-    scannedStudentIds: ['AT-2024-089']
+    scannedStudentIds: []
   });
 
-  const handleRecordQrScan = (studentId) => {
+  const handleRecordQrScan = (studentId, scannedCode) => {
     if (!activeQrSession || !activeQrSession.active) {
-      return { success: false, message: 'No active QR attendance session found.' };
+      return { success: false, message: 'No active QR attendance session found. Ask instructor to generate a QR session.' };
     }
+
+    let parsedCode = scannedCode;
+    if (typeof scannedCode === 'string') {
+      try {
+        const json = JSON.parse(scannedCode);
+        if (json && json.code) parsedCode = json.code;
+      } catch (e) {
+        // Keep scannedCode as-is if not valid JSON
+      }
+    }
+
+    if (parsedCode && activeQrSession.code && parsedCode !== activeQrSession.code) {
+      return { success: false, message: `Invalid QR Code scanned (${parsedCode}). Active session code is ${activeQrSession.code}.` };
+    }
+
     if (activeQrSession.scannedStudentIds.includes(studentId)) {
       return { success: false, message: 'Attendance already recorded for this QR session!' };
     }
@@ -372,7 +387,38 @@ export default function App() {
       })
     );
 
-    return { success: true, message: 'Attendance verified & recorded for today!' };
+    return { success: true, message: '✅ Attendance verified & recorded for today!' };
+  };
+
+  const handleMarkStudentAttendance = (studentId, status) => {
+    setStudents((prev) =>
+      prev.map((s) => {
+        if (s.id === studentId) {
+          const delta = status === 'present' ? 2 : -2;
+          const newAtt = Math.min(100, Math.max(0, (s.attendance || 80) + delta));
+          return { ...s, attendance: newAtt };
+        }
+        return s;
+      })
+    );
+  };
+
+  const handleEndQrSession = () => {
+    if (!activeQrSession || !activeQrSession.active) return;
+    const scannedSet = new Set(activeQrSession.scannedStudentIds || []);
+
+    // Mark session as inactive
+    setActiveQrSession((prev) => (prev ? { ...prev, active: false } : null));
+
+    // Any student who did NOT scan during the live QR session gets attendance decreased (-2%)
+    setStudents((prev) =>
+      prev.map((s) => {
+        if (!scannedSet.has(s.id)) {
+          return { ...s, attendance: Math.max(0, (s.attendance || 80) - 2) };
+        }
+        return s;
+      })
+    );
   };
 
   // Authentication Handlers
@@ -490,6 +536,8 @@ export default function App() {
             setActiveTab={setActiveTab}
             activeQrSession={activeQrSession}
             setActiveQrSession={setActiveQrSession}
+            onEndQrSession={handleEndQrSession}
+            onMarkStudentAttendance={handleMarkStudentAttendance}
             complaintsAndRequests={complaintsAndRequests}
             onAddComplaintRequest={handleAddComplaintRequest}
             onUpdateComplaintRequest={handleUpdateComplaintRequest}
