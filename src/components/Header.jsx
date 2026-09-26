@@ -6,7 +6,6 @@ import { useSiteConfig } from '../context/SiteConfigContext';
 
 export default function Header({
   userRole,
-  onSwitchRole,
   searchQuery,
   setSearchQuery,
   onOpenRegister,
@@ -21,7 +20,6 @@ export default function Header({
 }) {
   const { websiteConfig } = useSiteConfig();
   const [showNotifications, setShowNotifications] = useState(false);
-  const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [hasUnread, setHasUnread] = useState(true);
 
   // Automatically light up red dot notification badge when new notices arrive
@@ -41,13 +39,6 @@ export default function Header({
     student: 'Student',
     finance: 'Finance Officer'
   };
-
-  const roleOptions = [
-    { id: 'admin', label: 'Administrator' },
-    { id: 'faculty', label: 'Faculty Instructor' },
-    { id: 'student', label: 'Student' },
-    { id: 'finance', label: 'Finance Officer' }
-  ];
 
   return (
     <header className={`fixed top-0 left-0 ${isSidebarCollapsed ? 'lg:left-20' : 'lg:left-64'} right-0 h-16 bg-white/95 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-40 flex items-center justify-between px-3 sm:px-6 lg:px-8 border-b border-slate-200 transition-all duration-300`}>
@@ -72,46 +63,15 @@ export default function Header({
       {/* Header Right Actions */}
       <div className="flex items-center gap-2 sm:gap-4">
 
-        {/* Role Switcher Badge */}
-        <div className="relative">
-          <button
-            onClick={() => setShowRoleMenu(!showRoleMenu)}
-            title="Click to Switch Role Preview View"
-            className="flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full bg-slate-100 text-slate-800 text-[11px] sm:text-xs font-bold shadow-xs border border-slate-200 cursor-pointer hover:bg-slate-200 transition-colors"
-          >
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-            <span className="uppercase text-[10px] sm:text-[11px] truncate max-w-[90px] sm:max-w-none">
-              {roleNames[userRole] || 'USER'}
-            </span>
-            <ChevronDown className="w-3 h-3 text-slate-400 shrink-0" />
-          </button>
-
-          {showRoleMenu && (
-            <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 z-50">
-              <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
-                Switch Role View
-              </div>
-              <div className="space-y-1 mt-1">
-                {roleOptions.map((r) => (
-                  <button
-                    key={r.id}
-                    onClick={() => {
-                      if (onSwitchRole) onSwitchRole(r.id);
-                      setShowRoleMenu(false);
-                    }}
-                    className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition-colors flex items-center justify-between ${
-                      userRole === r.id 
-                        ? 'bg-blue-50 text-blue-600 font-bold' 
-                        : 'text-slate-700 hover:bg-slate-100'
-                    }`}
-                  >
-                    <span>{r.label}</span>
-                    {userRole === r.id && <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+        {/* Active Role Indicator Badge (Read-Only) */}
+        <div 
+          title={`Active Portal Role: ${roleNames[userRole] || 'User'}`}
+          className="flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full bg-slate-100 text-slate-800 text-[11px] sm:text-xs font-bold border border-slate-200"
+        >
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+          <span className="uppercase text-[10px] sm:text-[11px] truncate max-w-[90px] sm:max-w-none">
+            {roleNames[userRole] || 'USER'}
+          </span>
         </div>
 
         {/* Quick CTA buttons for Admin/Finance */}

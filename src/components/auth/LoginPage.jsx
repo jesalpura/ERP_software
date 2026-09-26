@@ -352,18 +352,37 @@ export default function LoginPage({ onSelectRoleLogin }) {
               </button>
             </form>
 
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-              <span>Quick Preset:</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail(`${selectedRoleId}@${websiteConfig.domain}`);
-                  setPassword('');
-                }}
-                className="text-indigo-600 font-semibold hover:underline cursor-pointer"
-              >
-                Fill Demo Email
-              </button>
+            <div className="pt-3 border-t border-slate-100 flex flex-col gap-2">
+              <div className="flex items-center justify-between text-[11px] text-slate-500">
+                <span className="font-semibold text-slate-600">Demo Testing Credentials:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail(`${selectedRoleId}@${websiteConfig.domain}`);
+                    setPassword('demo1234');
+                  }}
+                  className="text-indigo-600 font-semibold hover:underline cursor-pointer"
+                >
+                  Auto-fill Demo Form
+                </button>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px] text-slate-600 flex items-center justify-between">
+                <div>
+                  <span className="font-mono text-slate-900 font-bold block">{selectedRoleId}@${websiteConfig.domain}</span>
+                  <span className="text-slate-400 font-mono text-[10px]">Password: demo1234</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSelectRoleLogin({ id: selectedRoleId, email: `${selectedRoleId}@${websiteConfig.domain}` });
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[11px] transition-colors shadow-xs cursor-pointer flex items-center gap-1"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>1-Click Demo Login</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
