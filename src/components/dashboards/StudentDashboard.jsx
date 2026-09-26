@@ -28,6 +28,7 @@ import {
   FileText,
   Send,
   Camera,
+  QrCode,
   X,
   Zap,
   MessageSquare,
