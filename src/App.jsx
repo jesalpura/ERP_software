@@ -347,6 +347,7 @@ export default function App() {
     scannedStudentIds: []
   });
 
+
   const handleRecordQrScan = (studentId, scannedCode) => {
     if (!activeQrSession || !activeQrSession.active) {
       return { success: false, message: 'No active QR attendance session found. Ask instructor to generate a QR session.' };
@@ -358,36 +359,41 @@ export default function App() {
         const json = JSON.parse(scannedCode);
         if (json && json.code) parsedCode = json.code;
       } catch (e) {
-        // Keep scannedCode as-is if not valid JSON
+        // Raw text format
       }
+    } else if (typeof scannedCode === 'object' && scannedCode !== null && scannedCode.code) {
+      parsedCode = scannedCode.code;
     }
 
-    if (parsedCode && activeQrSession.code && parsedCode !== activeQrSession.code) {
-      return { success: false, message: `Invalid QR Code scanned (${parsedCode}). Active session code is ${activeQrSession.code}.` };
+    const cleanScanned = String(parsedCode || scannedCode || '').trim().toUpperCase().replace(/^"|"$/g, '');
+    const cleanActive = String(activeQrSession.code || '').trim().toUpperCase().replace(/^"|"$/g, '');
+
+    if (cleanScanned && cleanActive && !cleanScanned.includes(cleanActive) && !cleanActive.includes(cleanScanned)) {
+      return { success: false, message: `Invalid QR Code scanned (${cleanScanned}). Active session code is ${cleanActive}.` };
     }
 
-    if (activeQrSession.scannedStudentIds.includes(studentId)) {
-      return { success: false, message: 'Attendance already recorded for this QR session!' };
+    if (activeQrSession.scannedStudentIds && activeQrSession.scannedStudentIds.includes(studentId)) {
+      return { success: true, message: '✅ Attendance is already verified for today!' };
     }
 
-    // Broadcast scan event to all active sessions via Supabase Realtime
+    // Broadcast scan event to all active sessions via Supabase Realtime & Local state
     erpService.broadcastQrScan(studentId, activeQrSession.code);
 
     setActiveQrSession((prev) => prev ? {
       ...prev,
-      scannedStudentIds: [...prev.scannedStudentIds, studentId]
+      scannedStudentIds: [...(prev.scannedStudentIds || []), studentId]
     } : null);
 
     setStudents((prev) =>
       prev.map((s) => {
         if (s.id === studentId) {
-          return { ...s, attendance: Math.min(100, s.attendance + 2) };
+          return { ...s, attendance: Math.min(100, (s.attendance || 85) + 2) };
         }
         return s;
       })
     );
 
-    return { success: true, message: '✅ Attendance verified & recorded for today!' };
+    return { success: true, message: '✅ Attendance verified & recorded for today (+2%)!' };
   };
 
   const handleMarkStudentAttendance = (studentId, status) => {

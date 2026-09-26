@@ -523,11 +523,29 @@ class StudentTerminal(models.Model):
               </div>
             </div>
 
-            {/* Realtime Scanned Count */}
-            <div className="w-full text-center">
-              <span className="text-xs text-slate-500 font-semibold">
-                Scanned: <strong className="text-emerald-600">{activeQrSession?.scannedStudentIds?.length || 0}</strong> Student(s) Verified
-              </span>
+            {/* Realtime Scanned Count & Verified Students List */}
+            <div className="w-full flex flex-col gap-2">
+              <div className="text-center">
+                <span className="text-xs text-slate-500 font-semibold">
+                  Scanned: <strong className="text-emerald-600 font-bold">{activeQrSession?.scannedStudentIds?.length || 0}</strong> Student(s) Verified
+                </span>
+              </div>
+
+              {activeQrSession?.scannedStudentIds && activeQrSession.scannedStudentIds.length > 0 && (
+                <div className="max-h-32 overflow-y-auto bg-slate-50 p-2 rounded-xl border border-slate-200 flex flex-col gap-1.5 text-xs">
+                  {activeQrSession.scannedStudentIds.map((stId) => {
+                    const studentObj = initialStudents.find((s) => s.id === stId) || { name: stId, id: stId };
+                    return (
+                      <div key={stId} className="flex items-center justify-between bg-white p-1.5 px-2 rounded-lg border border-slate-100 shadow-2xs">
+                        <span className="font-bold text-slate-900">{studentObj.name} ({stId})</span>
+                        <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Verified (+2%)
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {qrTimeLeft === 0 ? (
