@@ -1,4 +1,5 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import QrCameraScanner from '../common/QrCameraScanner';
 import { erpService } from '../../services/erpService';
 
 // Lazy-load heavy view/PDF chunks
@@ -26,7 +27,6 @@ import {
   Wifi,
   FileText,
   Send,
-  QrCode,
   Camera,
   X,
   Zap,
@@ -96,7 +96,6 @@ export default function StudentDashboard({
 
   // QR Scanner Modal State
   const [isScannerOpen, setIsScannerOpen] = useState(false);
-  const [isScanning, setIsScanning] = useState(false);
 
   // Terminal Ping State
   const [isTestingTerminal, setIsTestingTerminal] = useState(false);
@@ -231,19 +230,16 @@ export default function StudentDashboard({
     }, 1200);
   };
 
-  const handleScanAttendance = () => {
-    setIsScanning(true);
-    setTimeout(() => {
-      setIsScanning(false);
-      setIsScannerOpen(false);
-      if (onRecordQrScan) {
-        const res = onRecordQrScan(currentStudent.id);
-        showToast(res.message);
-      } else {
-        showToast('Attendance successfully recorded via QR Code!');
-      }
-    }, 1500);
-  };
+  // Called by QrCameraScanner when a QR code is successfully decoded by the camera
+  const handleQrCodeDetected = useCallback((decodedText) => {
+    setIsScannerOpen(false);
+    if (onRecordQrScan) {
+      const res = onRecordQrScan(currentStudent.id, decodedText);
+      showToast(res.message);
+    } else {
+      showToast(`✅ Attendance recorded! Code scanned: ${decodedText}`);
+    }
+  }, [currentStudent, onRecordQrScan]);
 
   const handleOpenPdfModal = (asm) => {
     setActiveAssignmentToSubmit(asm);
@@ -414,8 +410,8 @@ export default function StudentDashboard({
       {/* STUDENT QR SCANNER CAMERA MODAL */}
       {isScannerOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-md w-full p-6 flex flex-col items-center gap-5 text-slate-900 relative">
-            <button 
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-sm w-full p-6 flex flex-col items-center gap-5 text-slate-900 relative">
+            <button
               onClick={() => setIsScannerOpen(false)}
               className="absolute top-4 right-4 p-2 rounded-full text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors"
             >
@@ -424,38 +420,22 @@ export default function StudentDashboard({
 
             <div className="text-center">
               <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-100 inline-flex items-center gap-1.5">
-                <Camera className="w-3.5 h-3.5" /> Live Camera Viewfinder
+                <Camera className="w-3.5 h-3.5" /> Live Camera • Auto-Scan
               </span>
               <h3 className="text-xl font-extrabold text-slate-900 mt-2">Scan Faculty Attendance QR</h3>
-              <p className="text-xs text-slate-500 mt-1">Point your camera at the instructor's QR broadcast screen</p>
+              <p className="text-xs text-slate-500 mt-1">Point your device camera at the instructor's QR code — detected automatically</p>
             </div>
 
-            {/* Camera Viewfinder Simulator Box */}
-            <div className="w-64 h-64 bg-slate-900 rounded-3xl border-4 border-emerald-500 shadow-xl flex flex-col items-center justify-center relative overflow-hidden p-4">
-              {/* Laser Scanning Line animation */}
-              <div className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent animate-pulse top-1/2 shadow-[0_0_15px_#34d399]"></div>
-              
-              <div className="w-44 h-44 border-2 border-dashed border-emerald-400/60 rounded-2xl flex flex-col items-center justify-center gap-2 p-2">
-                <Camera className="w-8 h-8 text-emerald-400 animate-bounce" />
-                <span className="text-[10px] font-mono text-emerald-200 text-center">
-                  {isScanning ? 'Verifying Session Token...' : 'Align QR inside box'}
-                </span>
-              </div>
-            </div>
+            {/* Real live camera QR scanner */}
+            <QrCameraScanner
+              onScan={handleQrCodeDetected}
+              onError={(err) => console.warn('QR Camera error:', err)}
+            />
 
             {/* Active Session Info Tag */}
             <div className="w-full bg-slate-50 p-3 rounded-2xl border border-slate-200 text-xs text-center text-slate-600 font-mono">
-              Target Code: <strong className="text-slate-900">{activeQrSession?.code || 'QR-ATT-2024'}</strong>
+              Target Session Code: <strong className="text-slate-900">{activeQrSession?.code || 'QR-ATT-2024'}</strong>
             </div>
-
-            <button
-              onClick={handleScanAttendance}
-              disabled={isScanning}
-              className="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs transition-colors shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              <QrCode className="w-4 h-4" />
-              <span>{isScanning ? 'Recording Attendance...' : 'Scan & Verify Attendance Now'}</span>
-            </button>
           </div>
         </div>
       )}
