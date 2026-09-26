@@ -589,9 +589,21 @@ export const erpService = {
   },
 
   broadcastPcMessage(msgPayload) {
-    // Broadcast via custom window event for same-window / multi-component sync
+    // 1. Broadcast via local window CustomEvent
     window.dispatchEvent(new CustomEvent('allocated-pc-message-sent', { detail: msgPayload }));
 
+    // 2. Broadcast via Browser BroadcastChannel API (Works cross-tab / cross-window on deployed origin)
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        const bc = new BroadcastChannel('tcit_erp_global_realtime');
+        bc.postMessage({ type: 'pc-message-sent', payload: msgPayload });
+        bc.close();
+      } catch (err) {
+        console.warn('BroadcastChannel error:', err);
+      }
+    }
+
+    // 3. Broadcast via Supabase Realtime Channel
     if (!isSupabaseConfigured || !supabase) return;
     const channel = supabase.channel('allocated-pc-communication-channel');
     channel.subscribe((status) => {
@@ -611,8 +623,21 @@ export const erpService = {
     };
     window.addEventListener('allocated-pc-message-sent', localHandler);
 
+    let bcListener = null;
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      bcListener = new BroadcastChannel('tcit_erp_global_realtime');
+      bcListener.onmessage = (event) => {
+        if (event.data?.type === 'pc-message-sent' && onMessageReceived) {
+          onMessageReceived(event.data.payload);
+        }
+      };
+    }
+
     if (!isSupabaseConfigured || !supabase) {
-      return () => window.removeEventListener('allocated-pc-message-sent', localHandler);
+      return () => {
+        window.removeEventListener('allocated-pc-message-sent', localHandler);
+        if (bcListener) bcListener.close();
+      };
     }
 
     const pcChannel = supabase
@@ -624,12 +649,23 @@ export const erpService = {
 
     return () => {
       window.removeEventListener('allocated-pc-message-sent', localHandler);
+      if (bcListener) bcListener.close();
       supabase.removeChannel(pcChannel);
     };
   },
 
   broadcastPcTerminalUpdate(updatedTerminal) {
     window.dispatchEvent(new CustomEvent('allocated-pc-terminal-updated', { detail: updatedTerminal }));
+
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        const bc = new BroadcastChannel('tcit_erp_global_realtime');
+        bc.postMessage({ type: 'pc-terminal-updated', payload: updatedTerminal });
+        bc.close();
+      } catch (err) {
+        console.warn('BroadcastChannel error:', err);
+      }
+    }
 
     if (!isSupabaseConfigured || !supabase) return;
     const channel = supabase.channel('allocated-pc-terminal-channel');
@@ -650,8 +686,21 @@ export const erpService = {
     };
     window.addEventListener('allocated-pc-terminal-updated', localHandler);
 
+    let bcListener = null;
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      bcListener = new BroadcastChannel('tcit_erp_global_realtime');
+      bcListener.onmessage = (event) => {
+        if (event.data?.type === 'pc-terminal-updated' && onTerminalUpdated) {
+          onTerminalUpdated(event.data.payload);
+        }
+      };
+    }
+
     if (!isSupabaseConfigured || !supabase) {
-      return () => window.removeEventListener('allocated-pc-terminal-updated', localHandler);
+      return () => {
+        window.removeEventListener('allocated-pc-terminal-updated', localHandler);
+        if (bcListener) bcListener.close();
+      };
     }
 
     const terminalChannel = supabase
@@ -663,7 +712,72 @@ export const erpService = {
 
     return () => {
       window.removeEventListener('allocated-pc-terminal-updated', localHandler);
+      if (bcListener) bcListener.close();
       supabase.removeChannel(terminalChannel);
+    };
+  },
+
+  // 15. REALTIME ASSIGNMENT SUBMISSIONS
+  broadcastAssignmentSubmit(submissionPayload) {
+    window.dispatchEvent(new CustomEvent('assignment-submitted-event', { detail: submissionPayload }));
+
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        const bc = new BroadcastChannel('tcit_erp_global_realtime');
+        bc.postMessage({ type: 'assignment-submitted', payload: submissionPayload });
+        bc.close();
+      } catch (err) {
+        console.warn('BroadcastChannel error:', err);
+      }
+    }
+
+    if (!isSupabaseConfigured || !supabase) return;
+    const channel = supabase.channel('assignments-realtime-channel');
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        channel.send({
+          type: 'broadcast',
+          event: 'assignment-submitted',
+          payload: submissionPayload
+        });
+      }
+    });
+  },
+
+  subscribeToAssignmentSubmissions(onSubmissionReceived) {
+    const localHandler = (e) => {
+      if (onSubmissionReceived && e.detail) onSubmissionReceived(e.detail);
+    };
+    window.addEventListener('assignment-submitted-event', localHandler);
+
+    let bcListener = null;
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      bcListener = new BroadcastChannel('tcit_erp_global_realtime');
+      bcListener.onmessage = (event) => {
+        if (event.data?.type === 'assignment-submitted' && onSubmissionReceived) {
+          onSubmissionReceived(event.data.payload);
+        }
+      };
+    }
+
+    if (!isSupabaseConfigured || !supabase) {
+      return () => {
+        window.removeEventListener('assignment-submitted-event', localHandler);
+        if (bcListener) bcListener.close();
+      };
+    }
+
+    const asmChannel = supabase
+      .channel('assignments-realtime-channel')
+      .on('broadcast', { event: 'assignment-submitted' }, ({ payload }) => {
+        if (onSubmissionReceived) onSubmissionReceived(payload);
+      })
+      .subscribe();
+
+    return () => {
+      window.removeEventListener('assignment-submitted-event', localHandler);
+      if (bcListener) bcListener.close();
+      supabase.removeChannel(asmChannel);
     };
   }
 };

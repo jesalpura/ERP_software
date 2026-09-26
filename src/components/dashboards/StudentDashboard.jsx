@@ -1,4 +1,5 @@
-import React, { useState, lazy, Suspense } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
+import { erpService } from '../../services/erpService';
 
 // Lazy-load heavy view/PDF chunks
 const ComplaintsRequestsView = lazy(() => import('../views/ComplaintsRequestsView'));
@@ -29,7 +30,10 @@ import {
   Camera,
   X,
   Zap,
-  MessageSquare
+  MessageSquare,
+  FileCheck,
+  ExternalLink,
+  Paperclip
 } from 'lucide-react';
 
 export default function StudentDashboard({ 
@@ -57,6 +61,38 @@ export default function StudentDashboard({
   const [activeScheduleDay, setActiveScheduleDay] = useState('Today');
   const [assignmentFilter, setAssignmentFilter] = useState('All');
   const [studentChatInput, setStudentChatInput] = useState('');
+
+  // Real PDF Assignment Submission State
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+  const [activeAssignmentToSubmit, setActiveAssignmentToSubmit] = useState(null);
+  const [selectedPdfFile, setSelectedPdfFile] = useState(null);
+  const [pdfComments, setPdfComments] = useState('');
+  const [githubUrl, setGithubUrl] = useState('');
+  const [isSubmittingPdf, setIsSubmittingPdf] = useState(false);
+  const [submissions, setSubmissions] = useState({
+    'ASM-102': {
+      assignmentId: 'ASM-102',
+      fileName: 'GST_Ledger_Reconciliation_Solution.pdf',
+      fileSize: '1.4 MB',
+      submittedAt: 'Oct 24, 2024 • 04:30 PM',
+      comment: 'Reconciled GST ledger vouchers & filled return summaries in PDF format.',
+      status: 'Submitted',
+      fileUrl: null
+    }
+  });
+
+  // Listen for realtime assignment submissions from other tabs/users
+  useEffect(() => {
+    const unsubscribe = erpService.subscribeToAssignmentSubmissions((newSub) => {
+      if (newSub && newSub.assignmentId) {
+        setSubmissions((prev) => ({
+          ...prev,
+          [newSub.assignmentId]: newSub
+        }));
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   // QR Scanner Modal State
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -209,8 +245,74 @@ export default function StudentDashboard({
     }, 1500);
   };
 
-  const handleAssignmentSubmit = (asmTitle) => {
-    showToast(`Solution submitted for ${asmTitle}! Review requested.`);
+  const handleOpenPdfModal = (asm) => {
+    setActiveAssignmentToSubmit(asm);
+    setSelectedPdfFile(null);
+    setPdfComments('');
+    setGithubUrl('');
+    setIsPdfModalOpen(true);
+  };
+
+  const handlePdfFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+        showToast('Please select a valid PDF document (.pdf).');
+        return;
+      }
+      setSelectedPdfFile(file);
+    }
+  };
+
+  const handleConfirmPdfSubmit = () => {
+    if (!selectedPdfFile) {
+      showToast('Please select a PDF document file to upload.');
+      return;
+    }
+
+    setIsSubmittingPdf(true);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const fileDataUrl = event.target.result;
+      const submissionObj = {
+        assignmentId: activeAssignmentToSubmit.id,
+        assignmentTitle: activeAssignmentToSubmit.title,
+        studentId: currentStudent.id,
+        studentName: currentStudent.name,
+        fileName: selectedPdfFile.name,
+        fileSize: selectedPdfFile.size > 1024 * 1024
+          ? (selectedPdfFile.size / (1024 * 1024)).toFixed(2) + ' MB'
+          : (selectedPdfFile.size / 1024).toFixed(1) + ' KB',
+        fileUrl: fileDataUrl,
+        submittedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' • ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        comment: pdfComments || 'PDF solution submitted for instructor grading.',
+        githubUrl: githubUrl || '',
+        status: 'Submitted'
+      };
+
+      setSubmissions((prev) => ({
+        ...prev,
+        [activeAssignmentToSubmit.id]: submissionObj
+      }));
+
+      // Realtime broadcast across tabs & Supabase websockets
+      erpService.broadcastAssignmentSubmit(submissionObj);
+
+      setIsSubmittingPdf(false);
+      setIsPdfModalOpen(false);
+      setSelectedPdfFile(null);
+      setPdfComments('');
+      setGithubUrl('');
+      showToast(`PDF Solution "${selectedPdfFile.name}" submitted successfully!`);
+    };
+
+    reader.onerror = () => {
+      setIsSubmittingPdf(false);
+      showToast('Error reading PDF file. Please try again.');
+    };
+
+    reader.readAsDataURL(selectedPdfFile);
   };
 
   const attendanceDays = [
@@ -738,22 +840,68 @@ export default function StudentDashboard({
           </div>
 
           <div className="space-y-4">
-            {filteredAssignments.map((asm) => (
-              <div key={asm.id} className="p-5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-blue-200 transition-all">
-                <div>
-                  <span className="font-mono font-bold text-blue-600 text-xs">{asm.id}</span>
-                  <h4 className="font-bold text-slate-900 text-sm mt-0.5">{asm.title}</h4>
-                  <p className="text-slate-500 text-xs mt-1">Due Date: <strong>{asm.dueDate}</strong> • Course: {asm.course}</p>
-                </div>
+            {filteredAssignments.map((asm) => {
+              const sub = submissions[asm.id];
+              return (
+                <div key={asm.id} className={`p-5 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all ${
+                  sub ? 'bg-emerald-50/40 border-emerald-200' : 'bg-slate-50 border-slate-200 hover:border-blue-200'
+                }`}>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-blue-600 text-xs">{asm.id}</span>
+                      {sub ? (
+                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-extrabold text-[10px] flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Solution Submitted
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-[10px]">
+                          Pending Upload
+                        </span>
+                      )}
+                    </div>
+                    <h4 className="font-bold text-slate-900 text-sm mt-1">{asm.title}</h4>
+                    <p className="text-slate-500 text-xs mt-1">Due Date: <strong>{asm.dueDate}</strong> • Course: {asm.course}</p>
+                    
+                    {sub && (
+                      <div className="mt-3 p-3 rounded-xl bg-white border border-emerald-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <div>
+                            <span className="font-bold text-slate-900 block">{sub.fileName}</span>
+                            <span className="text-[10px] text-slate-500">{sub.fileSize} • Submitted {sub.submittedAt}</span>
+                          </div>
+                        </div>
+                        {sub.fileUrl && (
+                          <button
+                            onClick={() => {
+                              const w = window.open();
+                              if (w) w.document.write(`<iframe src="${sub.fileUrl}" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+                          >
+                            <Paperclip className="w-3.5 h-3.5" /> View Uploaded PDF
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
 
-                <button
-                  onClick={() => handleAssignmentSubmit(asm.title)}
-                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-colors shadow-xs flex items-center gap-2 self-start md:self-auto"
-                >
-                  <Upload className="w-3.5 h-3.5" /> Submit Solution
-                </button>
-              </div>
-            ))}
+                  <div className="flex items-center gap-2 self-start md:self-auto">
+                    <button
+                      onClick={() => handleOpenPdfModal(asm)}
+                      className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-colors shadow-xs flex items-center gap-2 cursor-pointer ${
+                        sub 
+                          ? 'bg-slate-200 text-slate-800 hover:bg-slate-300' 
+                          : 'bg-blue-600 hover:bg-blue-700 text-white'
+                      }`}
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{sub ? 'Re-upload PDF' : 'Upload PDF Solution'}</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -842,6 +990,123 @@ export default function StudentDashboard({
             studentList={students}
           />
         </Suspense>
+      )}
+
+      {/* REAL PDF ASSIGNMENT SUBMISSION MODAL */}
+      {isPdfModalOpen && activeAssignmentToSubmit && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-white rounded-3xl p-6 shadow-2xl border border-slate-200 flex flex-col gap-5 animate-fadeIn">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base">Upload PDF Assignment Solution</h3>
+                  <p className="text-xs text-slate-500 font-mono">{activeAssignmentToSubmit.id} • {activeAssignmentToSubmit.course}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsPdfModalOpen(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <h4 className="font-bold text-slate-900 text-sm">{activeAssignmentToSubmit.title}</h4>
+              <p className="text-xs text-slate-500 mt-1">Due Date: <strong>{activeAssignmentToSubmit.dueDate}</strong></p>
+            </div>
+
+            {/* PDF File Drag & Drop Upload Input */}
+            <div className="flex flex-col gap-2">
+              <label className="block text-xs font-extrabold text-slate-700">
+                Attach Assignment PDF File <span className="text-rose-500">*</span>
+              </label>
+
+              <div className="relative border-2 border-dashed border-blue-200 hover:border-blue-500 bg-blue-50/40 rounded-2xl p-6 text-center flex flex-col items-center justify-center gap-2 transition-all cursor-pointer">
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={handlePdfFileChange}
+                  className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10"
+                />
+
+                {selectedPdfFile ? (
+                  <div className="flex flex-col items-center gap-1.5 z-0">
+                    <FileCheck className="w-10 h-10 text-emerald-600" />
+                    <span className="font-bold text-xs text-slate-900">{selectedPdfFile.name}</span>
+                    <span className="text-[11px] font-mono text-emerald-600 font-bold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                      {(selectedPdfFile.size / 1024 > 1024 ? (selectedPdfFile.size / (1024*1024)).toFixed(2) + ' MB' : (selectedPdfFile.size / 1024).toFixed(1) + ' KB')} • PDF Ready
+                    </span>
+                    <span className="text-[10px] text-slate-400 mt-1">Click to select a different PDF file</span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-1.5 z-0">
+                    <Upload className="w-9 h-9 text-blue-500" />
+                    <span className="font-extrabold text-xs text-slate-800">Click or Drag & Drop PDF Document Here</span>
+                    <span className="text-[11px] text-slate-500 font-mono">Accepts .pdf files (Max 25MB)</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Instructor Notes / Comments */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Comments / Solution Summary for Instructor (Optional)
+              </label>
+              <textarea
+                value={pdfComments}
+                onChange={(e) => setPdfComments(e.target.value)}
+                placeholder="Explain key implementations, REST endpoint summaries, or special notes..."
+                rows={2}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs"
+              />
+            </div>
+
+            {/* GitHub Repo URL */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                GitHub Repository / Live Demo URL (Optional)
+              </label>
+              <input
+                type="url"
+                value={githubUrl}
+                onChange={(e) => setGithubUrl(e.target.value)}
+                placeholder="https://github.com/your-username/assignment-repo"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs"
+              />
+            </div>
+
+            {/* Submit Action Buttons */}
+            <div className="flex items-center gap-3 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsPdfModalOpen(false)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!selectedPdfFile || isSubmittingPdf}
+                onClick={handleConfirmPdfSubmit}
+                className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs transition-colors shadow-md shadow-blue-600/20 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {isSubmittingPdf ? (
+                  <span>Uploading PDF...</span>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4" />
+                    <span>Confirm & Submit PDF</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
