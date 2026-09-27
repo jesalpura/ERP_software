@@ -368,16 +368,21 @@ export default function App() {
     const cleanScanned = String(parsedCode || scannedCode || '').trim().toUpperCase().replace(/^"|"$/g, '');
     const cleanActive = String(activeQrSession.code || '').trim().toUpperCase().replace(/^"|"$/g, '');
 
+    // Allow any QR session code if active session is live
     if (cleanScanned && cleanActive && !cleanScanned.includes(cleanActive) && !cleanActive.includes(cleanScanned)) {
-      return { success: false, message: `Invalid QR Code scanned (${cleanScanned}). Active session code is ${cleanActive}.` };
+      if (cleanScanned.startsWith('QR')) {
+        setActiveQrSession(prev => prev ? { ...prev, code: cleanScanned } : { code: cleanScanned, active: true, scannedStudentIds: [] });
+      } else {
+        return { success: false, message: `Invalid QR Code scanned (${cleanScanned}). Active session code is ${cleanActive}.` };
+      }
     }
 
     if (activeQrSession.scannedStudentIds && activeQrSession.scannedStudentIds.includes(studentId)) {
-      return { success: true, message: '✅ Attendance is already verified for today!' };
+      return { success: true, message: '✅ Attendance is already verified for today (+2%)!' };
     }
 
     // Broadcast scan event to all active sessions via Supabase Realtime & Local state
-    erpService.broadcastQrScan(studentId, activeQrSession.code);
+    erpService.broadcastQrScan(studentId, activeQrSession.code || cleanScanned);
 
     setActiveQrSession((prev) => prev ? {
       ...prev,
@@ -387,7 +392,8 @@ export default function App() {
     setStudents((prev) =>
       prev.map((s) => {
         if (s.id === studentId) {
-          return { ...s, attendance: Math.min(100, (s.attendance || 85) + 2) };
+          const newAtt = Math.min(100, (s.attendance || 85) + 2);
+          return { ...s, attendance: newAtt };
         }
         return s;
       })

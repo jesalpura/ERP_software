@@ -106,6 +106,15 @@ export default function FacultyDashboard({
     initialStudents.reduce((acc, s) => ({ ...acc, [s.id]: s.attendance }), {})
   );
 
+  // Sync attendance state whenever central students prop updates
+  useEffect(() => {
+    if (initialStudents && initialStudents.length > 0) {
+      setStudentAttendance(
+        initialStudents.reduce((acc, s) => ({ ...acc, [s.id]: s.attendance }), {})
+      );
+    }
+  }, [initialStudents]);
+
   // PR Reviews State
   const [prs, setPrs] = useState([
     {
