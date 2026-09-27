@@ -5,9 +5,17 @@ import { Camera, CameraOff, RotateCcw } from "lucide-react";
 /**
  * QrCameraScanner
  * Renders a live camera viewfinder and calls `onScan(decodedText)` when a QR code is detected.
+ *
+ * BUG FIX: The html5-qrcode library injects an error message into its container div when
+ * `stop()` is called concurrently from two places (once inside the scan callback, once during
+ * React's component cleanup on unmount). The fix is:
+ *  1. Stop the scanner FIRST inside the detection callback (await), THEN call onScan.
+ *  2. Use `stoppedRef` as a guard so the React cleanup skips stop() if already done.
+ * This prevents the library's error message from briefly flashing in the UI.
  */
 export default function QrCameraScanner({ onScan, onError }) {
   const scannerRef = useRef(null);
+  const stoppedRef = useRef(false); // guard against double-stop
   const containerId = useRef(`qr-reader-${Math.random().toString(36).slice(2)}`).current;
   const [status, setStatus] = useState("idle");
   const [errorMsg, setErrorMsg] = useState("");
@@ -15,9 +23,12 @@ export default function QrCameraScanner({ onScan, onError }) {
   const [activeCameraId, setActiveCameraId] = useState(null);
 
   const startScanner = async (cameraId) => {
-    if (scannerRef.current) {
+    // Stop any existing scanner instance first
+    if (scannerRef.current && !stoppedRef.current) {
       try { await scannerRef.current.stop(); } catch (_) {}
     }
+    stoppedRef.current = false;
+
     const html5QrCode = new Html5Qrcode(containerId);
     scannerRef.current = html5QrCode;
     setStatus("starting");
@@ -27,12 +38,18 @@ export default function QrCameraScanner({ onScan, onError }) {
       await html5QrCode.start(
         cameraId ? { deviceId: { exact: cameraId } } : { facingMode: "environment" },
         { fps: 10, qrbox: { width: 200, height: 200 }, aspectRatio: 1.0 },
-        (decodedText) => {
-          onScan && onScan(decodedText);
-          html5QrCode.stop().catch(() => {});
+        async (decodedText) => {
+          // KEY FIX: stop scanner FIRST, THEN call onScan.
+          // This prevents html5-qrcode from injecting its own error markup
+          // into the container div while React is in the middle of unmounting.
+          if (!stoppedRef.current) {
+            stoppedRef.current = true;
+            try { await html5QrCode.stop(); } catch (_) {}
+          }
           setStatus("idle");
+          onScan && onScan(decodedText);
         },
-        () => {}
+        () => {} // per-frame decode failure — ignore silently
       );
       setStatus("running");
     } catch (err) {
@@ -66,11 +83,13 @@ export default function QrCameraScanner({ onScan, onError }) {
       });
 
     return () => {
-      if (scannerRef.current) {
+      // Only stop if the onScan callback hasn't already stopped it
+      if (scannerRef.current && !stoppedRef.current) {
+        stoppedRef.current = true;
         scannerRef.current.stop().catch(() => {});
         scannerRef.current.clear().catch(() => {});
-        scannerRef.current = null;
       }
+      scannerRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -80,6 +99,7 @@ export default function QrCameraScanner({ onScan, onError }) {
     const idx = cameras.findIndex((c) => c.id === activeCameraId);
     const next = cameras[(idx + 1) % cameras.length];
     setActiveCameraId(next.id);
+    stoppedRef.current = false;
     await startScanner(next.id);
   };
 
@@ -122,7 +142,12 @@ export default function QrCameraScanner({ onScan, onError }) {
             <CameraOff className="w-10 h-10 text-rose-400" />
             <span className="text-[11px] text-rose-300 font-medium leading-relaxed">{errorMsg}</span>
             <button
-              onClick={() => { setStatus("idle"); setErrorMsg(""); startScanner(activeCameraId); }}
+              onClick={() => {
+                setStatus("idle");
+                setErrorMsg("");
+                stoppedRef.current = false;
+                startScanner(activeCameraId);
+              }}
               className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors"
             >
               <RotateCcw className="w-3.5 h-3.5" /> Retry
