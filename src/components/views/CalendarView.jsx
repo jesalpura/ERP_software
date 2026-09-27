@@ -441,33 +441,33 @@ export default function CalendarView({ userRole = 'admin', embedded = false }) {
   }
 
   return (
-    <div className={`flex flex-col gap-6 font-sans ${embedded ? '' : 'pb-12'}`}>
+    <div className={`flex flex-col gap-4 sm:gap-6 font-sans ${embedded ? '' : 'pb-12'}`}>
       {/* Clean Light Header Bar */}
-      <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-sm font-bold shrink-0">
             <CalendarIcon className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
+            <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">
               Calendar
             </h1>
-            <p className="text-xs text-slate-500">
+            <p className="text-[11px] sm:text-xs text-slate-500">
               Academic schedule, Indian public holidays, and major Hindu festivals
             </p>
           </div>
         </div>
 
         {/* Action Controls & Region Selector */}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {/* Region / State Picker */}
-          <div className="flex items-center gap-2 bg-slate-50 p-2 px-3 rounded-2xl border border-slate-200 text-xs">
+          <div className="flex items-center gap-2 bg-slate-50 p-2 px-3 rounded-2xl border border-slate-200 text-xs w-full xs:w-auto">
             <MapPin className="w-4 h-4 text-rose-500 shrink-0" />
-            <span className="font-bold text-slate-700 text-[11px] hidden sm:inline">Region:</span>
+            <span className="font-bold text-slate-700 text-[11px] shrink-0">Region:</span>
             <select
               value={selectedStateCode}
               onChange={(e) => setSelectedStateCode(e.target.value)}
-              className="bg-transparent text-slate-900 font-bold outline-none cursor-pointer max-w-[180px] sm:max-w-none truncate"
+              className="bg-transparent text-slate-900 font-bold outline-none cursor-pointer w-full xs:w-auto truncate"
             >
               {INDIAN_STATES.map((st) => (
                 <option key={st.code} value={st.code} className="bg-white text-slate-900">
@@ -480,34 +480,34 @@ export default function CalendarView({ userRole = 'admin', embedded = false }) {
           {/* Add Event Button */}
           <button
             onClick={() => handleOpenAddModal()}
-            className="px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition-all shadow-sm flex items-center gap-2 cursor-pointer"
+            className="w-full xs:w-auto px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 shrink-0" />
             <span>+ Add Event / Off-Day</span>
           </button>
         </div>
       </div>
 
       {/* Filter & Search Toolbar (Light Theme) */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
+      <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4">
         {/* Month Navigation & Today */}
-        <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
-          <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+        <div className="flex items-center gap-2 sm:gap-3 w-full md:w-auto justify-between md:justify-start">
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
             <button
               onClick={handlePrevMonth}
-              className="p-2 rounded-lg hover:bg-white text-slate-700 transition-colors cursor-pointer"
+              className="p-1.5 sm:p-2 rounded-lg hover:bg-white text-slate-700 transition-colors cursor-pointer"
               title="Previous Month"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             
-            <div className="px-3 py-1 font-extrabold text-sm text-slate-900 min-w-[140px] text-center">
+            <div className="px-2 sm:px-3 py-1 font-extrabold text-xs sm:text-sm text-slate-900 min-w-[110px] sm:min-w-[140px] text-center">
               {monthNames[currentMonth]} {currentYear}
             </div>
 
             <button
               onClick={handleNextMonth}
-              className="p-2 rounded-lg hover:bg-white text-slate-700 transition-colors cursor-pointer"
+              className="p-1.5 sm:p-2 rounded-lg hover:bg-white text-slate-700 transition-colors cursor-pointer"
               title="Next Month"
             >
               <ChevronRight className="w-4 h-4" />
@@ -516,16 +516,16 @@ export default function CalendarView({ userRole = 'admin', embedded = false }) {
 
           <button
             onClick={handleToday}
-            className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-all border border-slate-200 cursor-pointer"
+            className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-all border border-slate-200 cursor-pointer"
           >
             Today
           </button>
         </div>
 
         {/* Search & Category Filter Pills */}
-        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+        <div className="flex flex-col xs:flex-row items-center gap-2 sm:gap-3 w-full md:w-auto">
           {/* Search */}
-          <div className="relative flex-1 md:w-64">
+          <div className="relative w-full md:w-64">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
             <input
               type="text"
@@ -540,7 +540,7 @@ export default function CalendarView({ userRole = 'admin', embedded = false }) {
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
-            className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 outline-none cursor-pointer"
+            className="w-full xs:w-auto px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 outline-none cursor-pointer"
           >
             <option value="all">All Categories</option>
             <option value="panchang-festival">🪔 Major Hindu Festivals</option>
@@ -558,138 +558,141 @@ export default function CalendarView({ userRole = 'admin', embedded = false }) {
       {/* Main Grid & Sidebar Container */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* CALENDAR MONTH GRID (3 Cols) */}
-        <div className="lg:col-span-3 bg-white rounded-3xl border border-slate-200 shadow-xs p-5 flex flex-col gap-4">
-          {/* Weekday Headers */}
-          <div className="grid grid-cols-7 text-center border-b border-slate-200 pb-3">
-            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, i) => (
-              <span
-                key={day}
-                className={`text-xs font-extrabold uppercase tracking-wider ${
-                  i >= 5 ? 'text-rose-600' : 'text-slate-500'
-                }`}
-              >
-                {day}
-              </span>
-            ))}
-          </div>
-
-          {/* Month Grid Cells */}
-          <div className="grid grid-cols-7 gap-2">
-            {monthDays.map((cell, idx) => {
-              const dayEvents = getEventsForDate(cell.dateString);
-              const hasHoliday = dayEvents.some((e) => e.isIndianHoliday);
-              const hasPanchangFest = dayEvents.some((e) => e.isPanchangFestival);
-              const isWeekend = (idx % 7 === 5) || (idx % 7 === 6);
-
-              return (
-                <div
-                  key={cell.dateString}
-                  onClick={() => handleOpenAddModal(cell.dateString)}
-                  className={`min-h-[105px] p-2 rounded-2xl border transition-all flex flex-col justify-between cursor-pointer group relative overflow-hidden ${
-                    !cell.isCurrentMonth
-                      ? 'bg-slate-50/50 border-slate-100 text-slate-400 opacity-60'
-                      : cell.isToday
-                      ? 'bg-gradient-to-b from-indigo-50 to-blue-50/40 border-indigo-500 shadow-sm ring-2 ring-indigo-500/20'
-                      : hasPanchangFest
-                      ? 'bg-amber-50/60 border-amber-200 hover:border-amber-400'
-                      : hasHoliday
-                      ? 'bg-rose-50/50 border-rose-200 hover:border-rose-300'
-                      : isWeekend
-                      ? 'bg-slate-50/80 border-slate-200/60 hover:border-slate-300'
-                      : 'bg-white border-slate-200 hover:border-indigo-300 hover:shadow-xs'
+        <div className="lg:col-span-3 bg-white rounded-3xl border border-slate-200 shadow-xs p-3 sm:p-5 flex flex-col gap-3 sm:gap-4 overflow-x-auto">
+          <div className="min-w-[300px] sm:min-w-0 flex flex-col gap-3 sm:gap-4">
+            {/* Weekday Headers */}
+            <div className="grid grid-cols-7 text-center border-b border-slate-200 pb-2 sm:pb-3">
+              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, i) => (
+                <span
+                  key={day}
+                  className={`text-[10px] sm:text-xs font-extrabold uppercase tracking-wider ${
+                    i >= 5 ? 'text-rose-600' : 'text-slate-500'
                   }`}
                 >
-                  {/* Day Number Header */}
-                  <div className="flex items-center justify-between">
-                    <span
-                      className={`text-xs font-extrabold h-6 w-6 rounded-full flex items-center justify-center ${
-                        cell.isToday
-                          ? 'bg-indigo-600 text-white shadow-xs'
-                          : hasPanchangFest
-                          ? 'bg-amber-100 text-amber-900 font-black'
-                          : hasHoliday
-                          ? 'bg-rose-100 text-rose-800'
-                          : cell.isCurrentMonth
-                          ? 'text-slate-800'
-                          : 'text-slate-400'
-                      }`}
-                    >
-                      {cell.dayNumber}
-                    </span>
+                  <span className="hidden sm:inline">{day}</span>
+                  <span className="sm:hidden">{day.slice(0, 2)}</span>
+                </span>
+              ))}
+            </div>
 
-                    {cell.isToday && (
-                      <span className="text-[9px] font-extrabold text-indigo-600 uppercase tracking-widest">
-                        TODAY
+            {/* Month Grid Cells */}
+            <div className="grid grid-cols-7 gap-1 sm:gap-2">
+              {monthDays.map((cell, idx) => {
+                const dayEvents = getEventsForDate(cell.dateString);
+                const hasHoliday = dayEvents.some((e) => e.isIndianHoliday);
+                const hasPanchangFest = dayEvents.some((e) => e.isPanchangFestival);
+                const isWeekend = (idx % 7 === 5) || (idx % 7 === 6);
+
+                return (
+                  <div
+                    key={cell.dateString}
+                    onClick={() => handleOpenAddModal(cell.dateString)}
+                    className={`min-h-[70px] sm:min-h-[105px] p-1 sm:p-2 rounded-xl sm:rounded-2xl border transition-all flex flex-col justify-between cursor-pointer group relative overflow-hidden ${
+                      !cell.isCurrentMonth
+                        ? 'bg-slate-50/50 border-slate-100 text-slate-400 opacity-60'
+                        : cell.isToday
+                        ? 'bg-gradient-to-b from-indigo-50 to-blue-50/40 border-indigo-500 shadow-sm ring-2 ring-indigo-500/20'
+                        : hasPanchangFest
+                        ? 'bg-amber-50/60 border-amber-200 hover:border-amber-400'
+                        : hasHoliday
+                        ? 'bg-rose-50/50 border-rose-200 hover:border-rose-300'
+                        : isWeekend
+                        ? 'bg-slate-50/80 border-slate-200/60 hover:border-slate-300'
+                        : 'bg-white border-slate-200 hover:border-indigo-300 hover:shadow-xs'
+                    }`}
+                  >
+                    {/* Day Number Header */}
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={`text-[10px] sm:text-xs font-extrabold h-5 w-5 sm:h-6 sm:w-6 rounded-full flex items-center justify-center ${
+                          cell.isToday
+                            ? 'bg-indigo-600 text-white shadow-xs'
+                            : hasPanchangFest
+                            ? 'bg-amber-100 text-amber-900 font-black'
+                            : hasHoliday
+                            ? 'bg-rose-100 text-rose-800'
+                            : cell.isCurrentMonth
+                            ? 'text-slate-800'
+                            : 'text-slate-400'
+                        }`}
+                      >
+                        {cell.dayNumber}
                       </span>
-                    )}
 
-                    {/* Quick Add Icon on Hover */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenAddModal(cell.dateString);
-                      }}
-                      className="opacity-0 group-hover:opacity-100 p-1 rounded-md bg-indigo-50 text-indigo-600 transition-opacity cursor-pointer"
-                      title="Add event on this date"
-                    >
-                      <Plus className="w-3 h-3" />
-                    </button>
-                  </div>
+                      {cell.isToday && (
+                        <span className="text-[8px] sm:text-[9px] font-extrabold text-indigo-600 uppercase tracking-widest hidden xs:inline">
+                          TODAY
+                        </span>
+                      )}
 
-                  {/* Day Events List Badges */}
-                  <div className="flex flex-col gap-1 mt-1 overflow-hidden">
-                    {dayEvents.slice(0, 2).map((evt) => {
-                      if (evt.isPanchangFestival) {
+                      {/* Quick Add Icon on Hover */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenAddModal(cell.dateString);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded-md bg-indigo-50 text-indigo-600 transition-opacity cursor-pointer hidden sm:block"
+                        title="Add event on this date"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+
+                    {/* Day Events List Badges */}
+                    <div className="flex flex-col gap-0.5 sm:gap-1 mt-0.5 sm:mt-1 overflow-hidden">
+                      {dayEvents.slice(0, 2).map((evt) => {
+                        if (evt.isPanchangFestival) {
+                          return (
+                            <div
+                              key={evt.id}
+                              className="px-1 py-0.5 rounded sm:rounded-md bg-amber-500 text-white text-[8px] sm:text-[10px] font-extrabold truncate flex items-center gap-0.5 sm:gap-1 shadow-2xs"
+                              title={`🪔 Major Hindu Festival: ${evt.title}`}
+                            >
+                              <span className="shrink-0 text-[8px] sm:text-[10px]">🪔</span>
+                              <span className="truncate">{evt.title}</span>
+                            </div>
+                          );
+                        }
+
+                        if (evt.isIndianHoliday) {
+                          return (
+                            <div
+                              key={evt.id}
+                              className="px-1 py-0.5 rounded sm:rounded-md bg-rose-500 text-white text-[8px] sm:text-[10px] font-bold truncate flex items-center gap-0.5 sm:gap-1 shadow-2xs"
+                              title={`🇮🇳 ${evt.title} (${evt.type})`}
+                            >
+                              <span className="shrink-0 text-[8px] sm:text-[10px]">🇮🇳</span>
+                              <span className="truncate">{evt.title}</span>
+                            </div>
+                          );
+                        }
+
+                        const catConfig = EVENT_CATEGORIES.find((c) => c.id === evt.category) || EVENT_CATEGORIES[2];
                         return (
                           <div
                             key={evt.id}
-                            className="px-1.5 py-0.5 rounded-md bg-amber-500 text-white text-[10px] font-extrabold truncate flex items-center gap-1 shadow-2xs"
-                            title={`🪔 Major Hindu Festival: ${evt.title}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenEditModal(evt);
+                            }}
+                            className={`px-1 py-0.5 rounded sm:rounded-md text-[8px] sm:text-[10px] font-bold truncate flex items-center gap-0.5 sm:gap-1 cursor-pointer transition-transform hover:scale-102 ${catConfig.color}`}
+                            title={`${evt.title} (${evt.time})`}
                           >
-                            <span className="shrink-0 text-[10px]">🪔</span>
                             <span className="truncate">{evt.title}</span>
                           </div>
                         );
-                      }
+                      })}
 
-                      if (evt.isIndianHoliday) {
-                        return (
-                          <div
-                            key={evt.id}
-                            className="px-1.5 py-0.5 rounded-md bg-rose-500 text-white text-[10px] font-bold truncate flex items-center gap-1 shadow-2xs"
-                            title={`🇮🇳 ${evt.title} (${evt.type})`}
-                          >
-                            <span className="shrink-0 text-[10px]">🇮🇳</span>
-                            <span className="truncate">{evt.title}</span>
-                          </div>
-                        );
-                      }
-
-                      const catConfig = EVENT_CATEGORIES.find((c) => c.id === evt.category) || EVENT_CATEGORIES[2];
-                      return (
-                        <div
-                          key={evt.id}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenEditModal(evt);
-                          }}
-                          className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold truncate flex items-center gap-1 cursor-pointer transition-transform hover:scale-102 ${catConfig.color}`}
-                          title={`${evt.title} (${evt.time})`}
-                        >
-                          <span className="truncate">{evt.title}</span>
-                        </div>
-                      );
-                    })}
-
-                    {dayEvents.length > 2 && (
-                      <span className="text-[9px] font-bold text-slate-500 px-1">
-                        +{dayEvents.length - 2} more...
-                      </span>
-                    )}
+                      {dayEvents.length > 2 && (
+                        <span className="text-[8px] sm:text-[9px] font-bold text-slate-500 px-0.5">
+                          +{dayEvents.length - 2} more
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
 

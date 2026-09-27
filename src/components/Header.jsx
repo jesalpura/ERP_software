@@ -41,35 +41,35 @@ export default function Header({
   };
 
   return (
-    <header className={`fixed top-0 left-0 ${isSidebarCollapsed ? 'lg:left-20' : 'lg:left-64'} right-0 h-16 bg-white/95 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-40 flex items-center justify-between px-3 sm:px-6 lg:px-8 border-b border-slate-200 transition-all duration-300`}>
+    <header className={`fixed top-0 left-0 ${isSidebarCollapsed ? 'lg:left-20' : 'lg:left-64'} right-0 h-16 bg-white/95 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-40 flex items-center justify-between px-2.5 sm:px-6 lg:px-8 border-b border-slate-200 transition-all duration-300`}>
       {/* Header Left Actions / Mobile Menu Button */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
         <button
           onClick={onToggleMobileSidebar}
           title="Open Navigation Menu"
-          className="lg:hidden p-2 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-center cursor-pointer transition-colors"
+          className="lg:hidden p-2 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-center cursor-pointer transition-colors shrink-0"
         >
           <Menu className="w-5 h-5" />
         </button>
 
-        <div className="flex items-center gap-2 lg:hidden">
-          <SiteLogo imageClassName="h-7 w-7 object-cover rounded-lg" />
-          <span className="font-extrabold text-sm text-slate-900 tracking-tight">
+        <div className="flex items-center gap-1.5 sm:gap-2 lg:hidden min-w-0">
+          <SiteLogo imageClassName="h-7 w-7 object-cover rounded-lg shrink-0" />
+          <span className="font-extrabold text-xs sm:text-sm text-slate-900 tracking-tight truncate max-w-[80px] xs:max-w-[140px] sm:max-w-none">
             {websiteConfig.shortName}
           </span>
         </div>
       </div>
 
       {/* Header Right Actions */}
-      <div className="flex items-center gap-2 sm:gap-4">
+      <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
 
         {/* Active Role Indicator Badge (Read-Only) */}
         <div 
           title={`Active Portal Role: ${roleNames[userRole] || 'User'}`}
-          className="flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full bg-slate-100 text-slate-800 text-[11px] sm:text-xs font-bold border border-slate-200"
+          className="flex items-center gap-1 sm:gap-1.5 px-2 py-1 sm:px-3 sm:py-1.5 rounded-full bg-slate-100 text-slate-800 text-[10px] sm:text-xs font-bold border border-slate-200"
         >
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-          <span className="uppercase text-[10px] sm:text-[11px] truncate max-w-[90px] sm:max-w-none">
+          <span className="uppercase text-[9px] sm:text-[11px] truncate max-w-[45px] xs:max-w-[85px] sm:max-w-none">
             {roleNames[userRole] || 'USER'}
           </span>
         </div>
