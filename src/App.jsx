@@ -349,46 +349,36 @@ export default function App() {
 
 
   const handleRecordQrScan = (studentId, scannedCode) => {
-    if (!activeQrSession || !activeQrSession.active) {
-      return { success: false, message: 'No active QR attendance session found. Ask instructor to generate a QR session.' };
-    }
-
+    // Extract code string if JSON or raw text
     let parsedCode = scannedCode;
     if (typeof scannedCode === 'string') {
       try {
         const json = JSON.parse(scannedCode);
         if (json && json.code) parsedCode = json.code;
+        else if (json && json.session) parsedCode = json.session;
       } catch (e) {
-        // Raw text format
+        // Raw text string
       }
-    } else if (typeof scannedCode === 'object' && scannedCode !== null && scannedCode.code) {
-      parsedCode = scannedCode.code;
+    } else if (typeof scannedCode === 'object' && scannedCode !== null) {
+      parsedCode = scannedCode.code || scannedCode.session || scannedCode.text;
     }
 
-    const cleanScanned = String(parsedCode || scannedCode || '').trim().toUpperCase().replace(/^"|"$/g, '');
-    const cleanActive = String(activeQrSession.code || '').trim().toUpperCase().replace(/^"|"$/g, '');
-
-    // Allow any QR session code if active session is live
-    if (cleanScanned && cleanActive && !cleanScanned.includes(cleanActive) && !cleanActive.includes(cleanScanned)) {
-      if (cleanScanned.startsWith('QR')) {
-        setActiveQrSession(prev => prev ? { ...prev, code: cleanScanned } : { code: cleanScanned, active: true, scannedStudentIds: [] });
-      } else {
-        return { success: false, message: `Invalid QR Code scanned (${cleanScanned}). Active session code is ${cleanActive}.` };
-      }
-    }
-
-    if (activeQrSession.scannedStudentIds && activeQrSession.scannedStudentIds.includes(studentId)) {
-      return { success: true, message: '✅ Attendance is already verified for today (+2%)!' };
-    }
+    const cleanScanned = String(parsedCode || scannedCode || 'QR-ATTENDANCE').trim().toUpperCase().replace(/^"|"$/g, '');
+    const currentCode = cleanScanned || activeQrSession?.code || 'QR-ATT-2024';
 
     // Broadcast scan event to all active sessions via Supabase Realtime & Local state
-    erpService.broadcastQrScan(studentId, activeQrSession.code || cleanScanned);
+    erpService.broadcastQrScan(studentId, currentCode);
 
-    setActiveQrSession((prev) => prev ? {
-      ...prev,
-      scannedStudentIds: [...(prev.scannedStudentIds || []), studentId]
-    } : null);
+    setActiveQrSession((prev) => ({
+      code: currentCode,
+      lab: prev?.lab || 'LAB-01',
+      subject: prev?.subject || 'MERN Stack Web Dev',
+      secondsLeft: prev?.secondsLeft || 60,
+      active: true,
+      scannedStudentIds: Array.from(new Set([...(prev?.scannedStudentIds || []), studentId]))
+    }));
 
+    // Instantly increase student's attendance by +2%
     setStudents((prev) =>
       prev.map((s) => {
         if (s.id === studentId) {
