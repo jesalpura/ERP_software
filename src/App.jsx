@@ -649,7 +649,7 @@ export default function App() {
           onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
         />
 
-        <main className="pt-20 px-3 sm:px-6 lg:px-8 pb-12 flex-1 min-h-[calc(100vh-5rem)] min-w-0 overflow-x-hidden">
+        <main className="pt-20 px-3 sm:px-6 lg:px-8 pb-12 flex-1 min-h-[calc(100vh-5rem)] min-w-0">
           {renderRoleDashboard()}
         </main>
       </div>
