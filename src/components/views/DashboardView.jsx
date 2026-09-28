@@ -421,9 +421,9 @@ export default function DashboardView({
                       <td className="py-3.5 px-6 text-right">
                         <button
                           onClick={() => onViewReceipt(tx)}
-                          className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 text-[11px] font-semibold transition-colors inline-flex items-center gap-1"
+                          className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 text-[11px] font-semibold transition-colors inline-flex items-center gap-1 whitespace-nowrap shrink-0"
                         >
-                          <Eye className="w-3 h-3" /> Receipt
+                          <Eye className="w-3 h-3 shrink-0" /> Receipt
                         </button>
                       </td>
                     </tr>

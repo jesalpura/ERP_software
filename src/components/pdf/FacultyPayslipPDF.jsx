@@ -1,6 +1,6 @@
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
-import { useSiteConfig } from '../../context/SiteConfigContext';
+
 
 const styles = StyleSheet.create({
   page: {
@@ -124,8 +124,7 @@ const styles = StyleSheet.create({
   }
 });
 
-export default function FacultyPayslipPDF({ faculty }) {
-  const { websiteConfig, pdfConfig } = useSiteConfig();
+export default function FacultyPayslipPDF({ faculty, websiteConfig, pdfConfig }) {
   const name = faculty?.name || 'Dr. Rajesh Verma';
   const role = faculty?.role || 'Senior Professor';
   const subject = faculty?.subject || 'Full Stack Web Dev';

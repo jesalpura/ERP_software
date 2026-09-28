@@ -406,23 +406,23 @@ export default function FacultyScheduleView({ faculty, labs, externalSchedule, s
 
         {/* RIGHT WEEKLY GRID MATRIX */}
         <div className="lg:col-span-9 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col gap-4 overflow-x-auto">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2 whitespace-nowrap">
               <Clock className="w-5 h-5 text-indigo-600" />
               <span>Weekly Class Schedule Grid ({selectedLabFilter})</span>
             </h2>
-            <div className="flex items-center gap-3 text-xs text-slate-500">
-              <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-full bg-blue-600 inline-block"></span> Lab 01
+            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+              <span className="flex items-center gap-1 whitespace-nowrap">
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-600 inline-block shrink-0"></span> Lab 01
               </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 inline-block"></span> Lab 02
+              <span className="flex items-center gap-1 whitespace-nowrap">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 inline-block shrink-0"></span> Lab 02
               </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 inline-block"></span> Lab 03
+              <span className="flex items-center gap-1 whitespace-nowrap">
+                <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 inline-block shrink-0"></span> Lab 03
               </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-600 inline-block"></span> Lab 04
+              <span className="flex items-center gap-1 whitespace-nowrap">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-600 inline-block shrink-0"></span> Lab 04
               </span>
             </div>
           </div>
@@ -494,10 +494,10 @@ export default function FacultyScheduleView({ faculty, labs, externalSchedule, s
                               </div>
 
                               <div className="flex items-center justify-between gap-1 mt-2 text-[10px] font-bold">
-                                <span className="px-1.5 py-0.5 rounded bg-white border border-slate-200 shadow-2xs font-mono">
+                                <span className="px-1.5 py-0.5 rounded bg-white border border-slate-200 shadow-2xs font-mono whitespace-nowrap">
                                   {item.lab}
                                 </span>
-                                <span className="text-slate-500 uppercase font-mono">{item.batch}</span>
+                                <span className="text-slate-500 uppercase font-mono whitespace-nowrap">{item.batch}</span>
                               </div>
                             </div>
                           ) : (

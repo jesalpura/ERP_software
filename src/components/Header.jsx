@@ -21,6 +21,7 @@ export default function Header({
   const { websiteConfig } = useSiteConfig();
   const [showNotifications, setShowNotifications] = useState(false);
   const [hasUnread, setHasUnread] = useState(true);
+  const [readNotices, setReadNotices] = useState(new Set());
 
   // Automatically light up red dot notification badge when new notices arrive
   useEffect(() => {
@@ -31,6 +32,7 @@ export default function Header({
 
   const handleMarkAllRead = () => {
     setHasUnread(false);
+    setReadNotices(new Set(notices.map(n => n.id)));
   };
 
   const roleNames = {
@@ -139,13 +141,17 @@ export default function Header({
                 ) : (
                   notices.map((n) => {
                     const isUrgent = n.priority === 'Urgent' || n.priority === 'High';
+                    const isRead = readNotices.has(n.id);
+                    
                     return (
                       <div 
                         key={n.id}
                         className={`p-3 rounded-xl border text-xs flex flex-col gap-1 transition-all ${
-                          isUrgent
-                            ? 'bg-rose-50/60 border-rose-200'
-                            : 'bg-slate-50 border-slate-200/80'
+                          isRead
+                            ? 'opacity-50 grayscale bg-slate-50 border-slate-200'
+                            : isUrgent
+                              ? 'bg-rose-50/60 border-rose-200'
+                              : 'bg-slate-50 border-slate-200/80'
                         }`}
                       >
                         <div className="flex items-center justify-between gap-2">

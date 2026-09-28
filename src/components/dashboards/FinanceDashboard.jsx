@@ -1,4 +1,5 @@
 import React, { useState, lazy, Suspense } from 'react';
+import { useSiteConfig } from '../../context/SiteConfigContext';
 
 // Lazy-load heavy view/PDF chunks
 const FeeLedgerView      = lazy(() => import('../views/FeeLedgerView'));
@@ -28,7 +29,7 @@ export default function FinanceDashboard({
   transactions,
   students,
   faculty,
-  expenses,
+  expenses: initialExpenses,
   activeTab: parentActiveTab,
   setActiveTab: parentSetActiveTab,
   onViewReceipt,
@@ -36,8 +37,12 @@ export default function FinanceDashboard({
   onUpdateFacultyDisbursement,
   onDisburseAllFaculty
 }) {
+  const { websiteConfig, pdfConfig } = useSiteConfig();
   const validTabIds = ['overview', 'yearly-growth', 'student-collections', 'faculty-payroll', 'expense-ledger'];
   const [internalTab, setInternalTab] = useState('overview');
+  
+  // Local state for expenses to make them editable
+  const [expenses, setExpenses] = useState(initialExpenses || []);
 
   const currentTab = parentActiveTab && validTabIds.includes(parentActiveTab)
     ? parentActiveTab
@@ -57,6 +62,37 @@ export default function FinanceDashboard({
     { id: 'faculty-payroll', label: 'Faculty Payroll & Honorarium', icon: DollarSign },
     { id: 'expense-ledger', label: 'Expense Ledger & Audit', icon: ShieldCheck },
   ];
+
+  const handleLogNewExpense = () => {
+    const amountStr = prompt('Enter expense amount (e.g. 5000):');
+    if (!amountStr) return;
+    const amount = parseInt(amountStr);
+    if (isNaN(amount) || amount <= 0) return alert('Invalid amount');
+    
+    const category = prompt('Enter category (e.g. Maintenance, Hardware):') || 'Miscellaneous';
+    const description = prompt('Enter description:') || 'New logged expense';
+    const vendor = prompt('Enter vendor/payee name:') || 'Unknown Vendor';
+    
+    const newExp = {
+      id: `EXP-2024-${Math.floor(Math.random() * 900) + 100}`,
+      category,
+      description,
+      vendor,
+      amount,
+      status: 'Pending',
+      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    };
+    
+    setExpenses([newExp, ...expenses]);
+  };
+
+  const handleToggleExpenseStatus = (id) => {
+    setExpenses(expenses.map(exp => 
+      exp.id === id 
+        ? { ...exp, status: exp.status === 'Cleared' ? 'Pending' : 'Cleared' } 
+        : exp
+    ));
+  };
 
   const totalFeeCollected = transactions.reduce((acc, t) => acc + t.amount, 0) + 319000;
   const totalExpenses = expenses.reduce((acc, e) => acc + e.amount, 0);
@@ -235,7 +271,7 @@ export default function FinanceDashboard({
               </div>
               <Suspense fallback={<span className="text-xs text-slate-400">Preparing PDF…</span>}>
                 <PDFDownloadButton
-                  document={<FinancialAuditPDF totalCollection={totalFeeCollected} />}
+                  document={<FinancialAuditPDF totalCollection={totalFeeCollected} websiteConfig={websiteConfig} pdfConfig={pdfConfig} />}
                   fileName="Institutional_Financial_Audit_Report_2024.pdf"
                   buttonText="Download Audit PDF"
                   variant="emerald"
@@ -303,46 +339,47 @@ export default function FinanceDashboard({
 
           {/* Detailed Financial Audit Table Across Fiscal Years */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <h3 className="font-bold text-slate-900 text-sm">Fiscal Years Comparative Financial Ledger</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Audited annual financial statements & growth trajectory</p>
+                <p className="text-xs text-slate-500 mt-0.5">Audited annual financial statements &amp; growth trajectory</p>
               </div>
-              <span className="px-3 py-1 rounded-full bg-teal-50 text-teal-700 text-xs font-bold border border-teal-200">
+              <span className="px-3 py-1 rounded-full bg-teal-50 text-teal-700 text-xs font-bold border border-teal-200 self-start sm:self-auto">
                 4 Fiscal Cycles Tracked
               </span>
             </div>
 
+            {/* Desktop table — overflow scroll on narrow viewports */}
             <div className="overflow-x-auto w-full">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50 text-[11px] text-slate-400 font-bold uppercase tracking-wider">
-                    <th className="py-3 px-6">Fiscal Year</th>
-                    <th className="py-3 px-4">Enrolled Students</th>
-                    <th className="py-3 px-4">Gross Revenue</th>
-                    <th className="py-3 px-4">Operating Cost</th>
-                    <th className="py-3 px-4">Net Surplus</th>
-                    <th className="py-3 px-4">YoY Growth %</th>
-                    <th className="py-3 px-4">Top Revenue Driver</th>
-                    <th className="py-3 px-6 text-right">Audit Status</th>
+                    <th className="py-3 px-4 sm:px-6 whitespace-nowrap">Fiscal Year</th>
+                    <th className="py-3 px-4 whitespace-nowrap">Students</th>
+                    <th className="py-3 px-4 whitespace-nowrap">Gross Revenue</th>
+                    <th className="py-3 px-4 whitespace-nowrap">Op. Cost</th>
+                    <th className="py-3 px-4 whitespace-nowrap">Net Surplus</th>
+                    <th className="py-3 px-4 whitespace-nowrap">YoY %</th>
+                    <th className="py-3 px-4 hidden lg:table-cell whitespace-nowrap">Top Driver</th>
+                    <th className="py-3 px-4 sm:px-6 text-right whitespace-nowrap">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs">
                   {yearlyGrowthData.map((row) => (
                     <tr key={row.year} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-3.5 px-6 font-bold text-slate-900">{row.year}</td>
-                      <td className="py-3.5 px-4 font-semibold text-slate-700">{row.studentsEnrolled} Active</td>
-                      <td className="py-3.5 px-4 font-bold text-slate-900">₹{row.grossRevenue.toLocaleString('en-IN')}</td>
-                      <td className="py-3.5 px-4 font-semibold text-rose-600">₹{row.expenses.toLocaleString('en-IN')}</td>
-                      <td className="py-3.5 px-4 font-extrabold text-teal-700">₹{row.netSurplus.toLocaleString('en-IN')}</td>
-                      <td className="py-3.5 px-4">
-                        <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-extrabold text-[11px]">
+                      <td className="py-3 px-4 sm:px-6 font-bold text-slate-900 whitespace-nowrap">{row.year}</td>
+                      <td className="py-3 px-4 font-semibold text-slate-700 whitespace-nowrap">{row.studentsEnrolled}</td>
+                      <td className="py-3 px-4 font-bold text-slate-900 whitespace-nowrap">&#8377;{row.grossRevenue.toLocaleString('en-IN')}</td>
+                      <td className="py-3 px-4 font-semibold text-rose-600 whitespace-nowrap">&#8377;{row.expenses.toLocaleString('en-IN')}</td>
+                      <td className="py-3 px-4 font-extrabold text-teal-700 whitespace-nowrap">&#8377;{row.netSurplus.toLocaleString('en-IN')}</td>
+                      <td className="py-3 px-4">
+                        <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-extrabold text-[11px] whitespace-nowrap">
                           {row.growthPct}
                         </span>
                       </td>
-                      <td className="py-3.5 px-4 text-slate-600 font-medium">{row.topCourse}</td>
-                      <td className="py-3.5 px-6 text-right">
-                        <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                      <td className="py-3 px-4 text-slate-600 font-medium hidden lg:table-cell">{row.topCourse}</td>
+                      <td className="py-3 px-4 sm:px-6 text-right">
+                        <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap ${
                           row.status === 'Audited' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
                         }`}>
                           {row.status}
@@ -391,37 +428,81 @@ export default function FinanceDashboard({
       {/* TAB 4: EXPENSE LEDGER */}
       {currentTab === 'expense-ledger' && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+          <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <h3 className="font-bold text-slate-900 text-sm">Operational Expense Audit Ledger</h3>
-            <button onClick={() => alert('Expense voucher recorded.')} className="px-3.5 py-1.5 rounded-xl bg-slate-100 text-slate-800 text-xs font-semibold hover:bg-slate-200">
+            <button onClick={handleLogNewExpense} className="px-3.5 py-1.5 rounded-xl bg-slate-100 text-slate-800 text-xs font-semibold hover:bg-slate-200 self-start sm:self-auto whitespace-nowrap">
               + Log New Expense
             </button>
           </div>
-          <div className="overflow-x-auto w-full">
+
+          {/* Desktop table */}
+          <div className="hidden sm:block overflow-x-auto w-full">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 text-[11px] text-slate-400 font-bold uppercase tracking-wider">
-                  <th className="py-3 px-6">Voucher #</th>
+                  <th className="py-3 px-4 sm:px-6">Voucher #</th>
                   <th className="py-3 px-4">Category</th>
-                  <th className="py-3 px-4">Description</th>
-                  <th className="py-3 px-4">Vendor</th>
+                  <th className="py-3 px-4 hidden md:table-cell">Description</th>
+                  <th className="py-3 px-4 hidden lg:table-cell">Vendor</th>
                   <th className="py-3 px-4">Amount</th>
-                  <th className="py-3 px-6 text-right">Status</th>
+                  <th className="py-3 px-4 sm:px-6 text-right">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs">
                 {expenses.map((exp) => (
                   <tr key={exp.id} className="hover:bg-slate-50/80">
-                    <td className="py-3.5 px-6 font-mono font-bold text-teal-600">{exp.id}</td>
-                    <td className="py-3.5 px-4 font-semibold text-slate-900">{exp.category}</td>
-                    <td className="py-3.5 px-4 text-slate-600">{exp.description}</td>
-                    <td className="py-3.5 px-4 text-slate-500">{exp.vendor}</td>
-                    <td className="py-3.5 px-4 font-bold text-rose-600">₹{exp.amount.toLocaleString('en-IN')}</td>
-                    <td className="py-3.5 px-6 text-right font-semibold text-emerald-600">{exp.status}</td>
+                    <td className="py-3.5 px-4 sm:px-6 font-mono font-bold text-teal-600 whitespace-nowrap">{exp.id}</td>
+                    <td className="py-3.5 px-4 font-semibold text-slate-900 whitespace-nowrap">{exp.category}</td>
+                    <td className="py-3.5 px-4 text-slate-600 hidden md:table-cell">{exp.description}</td>
+                    <td className="py-3.5 px-4 text-slate-500 hidden lg:table-cell">{exp.vendor}</td>
+                    <td className="py-3.5 px-4 font-bold text-rose-600 whitespace-nowrap">&#8377;{exp.amount.toLocaleString('en-IN')}</td>
+                    <td className="py-3.5 px-4 sm:px-6 text-right font-semibold whitespace-nowrap">
+                      <button 
+                        onClick={() => handleToggleExpenseStatus(exp.id)}
+                        className={`px-2 py-1 rounded text-[10px] uppercase font-bold border transition-colors ${
+                          exp.status === 'Cleared' 
+                            ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'
+                            : 'bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100'
+                        }`}
+                      >
+                        {exp.status}
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile card list */}
+          <div className="sm:hidden flex flex-col divide-y divide-slate-100">
+            {expenses.map((exp) => (
+              <div key={exp.id} className="p-4 flex flex-col gap-1.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <span className="font-mono font-bold text-teal-600 text-xs">{exp.id}</span>
+                    <p className="font-semibold text-slate-900 text-sm mt-0.5">{exp.category}</p>
+                    <p className="text-slate-500 text-xs truncate">{exp.description}</p>
+                    <p className="text-slate-400 text-[11px]">{exp.vendor}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="font-extrabold text-rose-600 text-base">&#8377;{exp.amount.toLocaleString('en-IN')}</span>
+                    <div className="mt-1">
+                      <button 
+                        onClick={() => handleToggleExpenseStatus(exp.id)}
+                        className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold border transition-colors ${
+                          exp.status === 'Cleared' 
+                            ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'
+                            : 'bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100'
+                        }`}
+                      >
+                        {exp.status}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

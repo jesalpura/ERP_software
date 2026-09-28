@@ -9,8 +9,8 @@ export default function FacultyPayrollView({ faculty, onUpdateFacultyDisbursemen
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  const totalPayroll = faculty.reduce((acc, f) => acc + f.salary + f.honorarium, 0);
-  const disbursedTotal = faculty.filter((f) => f.disbursed).reduce((acc, f) => acc + f.salary + f.honorarium, 0);
+  const totalPayroll = faculty.reduce((acc, f) => acc + (f.salary || 0) + (f.honorarium || 0), 0);
+  const disbursedTotal = faculty.filter((f) => f.disbursed).reduce((acc, f) => acc + (f.salary || 0) + (f.honorarium || 0), 0);
   const pendingTotal = totalPayroll - disbursedTotal;
   const pendingFaculty = faculty.filter((f) => !f.disbursed);
 
@@ -18,7 +18,7 @@ export default function FacultyPayrollView({ faculty, onUpdateFacultyDisbursemen
     if (onUpdateFacultyDisbursement) {
       onUpdateFacultyDisbursement(f.id, true);
     }
-    showToast(`Salary payment of ₹${(f.salary + f.honorarium).toLocaleString('en-IN')} approved & marked as Disbursed for ${f.name}.`);
+    showToast(`Salary payment of ₹${((f.salary || 0) + (f.honorarium || 0)).toLocaleString('en-IN')} approved & marked as Disbursed for ${f.name}.`);
   };
 
   const handleRevoke = (f) => {
@@ -110,23 +110,23 @@ export default function FacultyPayrollView({ faculty, onUpdateFacultyDisbursemen
         <div className="overflow-x-auto w-full">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50 text-[11px] text-slate-400 font-bold uppercase tracking-wider">
-                <th className="py-3.5 px-6">Faculty Member</th>
+              <tr className="bg-slate-50 text-[11px] text-slate-400 font-bold uppercase tracking-wider whitespace-nowrap">
+                <th className="py-3.5 px-4 sm:px-6">Faculty Member</th>
                 <th className="py-3.5 px-4">Subject / Specialization</th>
                 <th className="py-3.5 px-4">Today Punch</th>
                 <th className="py-3.5 px-4">Monthly Base Salary</th>
                 <th className="py-3.5 px-4">Honorarium Bonus</th>
                 <th className="py-3.5 px-4">Total Net Payout</th>
                 <th className="py-3.5 px-4">Payout Status</th>
-                <th className="py-3.5 px-6 text-right">Disbursement Action</th>
+                <th className="py-3.5 px-4 sm:px-6 text-right">Disbursement Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
               {faculty.map((f) => {
-                const totalPayout = f.salary + f.honorarium;
+                const totalPayout = (f.salary || 0) + (f.honorarium || 0);
                 return (
                   <tr key={f.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-4 px-6">
+                    <td className="py-4 px-4 sm:px-6 whitespace-nowrap">
                       <div className="flex items-center gap-3">
                         <img src={f.avatar} alt={f.name} className="w-10 h-10 rounded-full object-cover border border-slate-200" />
                         <div>
@@ -135,12 +135,12 @@ export default function FacultyPayrollView({ faculty, onUpdateFacultyDisbursemen
                         </div>
                       </div>
                     </td>
-                    <td className="py-4 px-4 font-medium text-slate-800">{f.subject}</td>
-                    <td className="py-4 px-4 font-mono text-slate-600">{f.punchTime}</td>
-                    <td className="py-4 px-4 font-bold text-slate-900">₹{f.salary.toLocaleString('en-IN')}</td>
-                    <td className="py-4 px-4 font-semibold text-blue-600">+₹{f.honorarium.toLocaleString('en-IN')}</td>
-                    <td className="py-4 px-4 font-extrabold text-slate-900">₹{totalPayout.toLocaleString('en-IN')}</td>
-                    <td className="py-4 px-4">
+                    <td className="py-4 px-4 font-medium text-slate-800 whitespace-nowrap">{f.subject}</td>
+                    <td className="py-4 px-4 font-mono text-slate-600 whitespace-nowrap">{f.punchTime}</td>
+                    <td className="py-4 px-4 font-bold text-slate-900 whitespace-nowrap">₹{(f.salary || 0).toLocaleString('en-IN')}</td>
+                    <td className="py-4 px-4 font-semibold text-blue-600 whitespace-nowrap">+₹{(f.honorarium || 0).toLocaleString('en-IN')}</td>
+                    <td className="py-4 px-4 font-extrabold text-slate-900 whitespace-nowrap">₹{totalPayout.toLocaleString('en-IN')}</td>
+                    <td className="py-4 px-4 whitespace-nowrap">
                       {f.disbursed ? (
                         <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1">
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Disbursed & Paid
@@ -151,11 +151,11 @@ export default function FacultyPayrollView({ faculty, onUpdateFacultyDisbursemen
                         </span>
                       )}
                     </td>
-                    <td className="py-4 px-6 text-right">
+                    <td className="py-4 px-4 sm:px-6 text-right whitespace-nowrap">
                       {f.disbursed ? (
                         <button 
                           onClick={() => handleRevoke(f)}
-                          className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                          className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                         >
                           <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
                           <span>Mark Pending</span>
@@ -163,7 +163,7 @@ export default function FacultyPayrollView({ faculty, onUpdateFacultyDisbursemen
                       ) : (
                         <button 
                           onClick={() => handleApprove(f)}
-                          className="px-3.5 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition-all shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
+                          className="px-3.5 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition-all shadow-xs inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                         >
                           <Check className="w-3.5 h-3.5 text-teal-200" />
                           <span>Approve & Disburse</span>

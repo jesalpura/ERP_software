@@ -95,7 +95,7 @@ export default function StudentsBatchesView({
         <div className="overflow-x-auto w-full">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50 text-[11px] text-slate-400 font-bold uppercase tracking-wider">
+              <tr className="bg-slate-50 text-[11px] text-slate-400 font-bold uppercase tracking-wider whitespace-nowrap">
                 <th className="py-3.5 px-6">Roll ID & Student</th>
                 <th className="py-3.5 px-4">Course & Batch</th>
                 <th className="py-3.5 px-4">Lab Seat</th>
@@ -115,7 +115,7 @@ export default function StudentsBatchesView({
               ) : (
                 filteredStudents.map((student) => (
                   <tr key={student.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-4 px-6">
+                    <td className="py-4 px-6 whitespace-nowrap">
                       <div className="flex items-center gap-3">
                         <img
                           src={student.avatar}
@@ -128,16 +128,16 @@ export default function StudentsBatchesView({
                         </div>
                       </div>
                     </td>
-                    <td className="py-4 px-4">
+                    <td className="py-4 px-4 whitespace-nowrap">
                       <div className="font-semibold text-slate-800">{student.course}</div>
                       <div className="text-[11px] text-slate-400">{student.batch}</div>
                     </td>
-                    <td className="py-4 px-4">
+                    <td className="py-4 px-4 whitespace-nowrap">
                       <span className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-semibold">
                         {student.lab}
                       </span>
                     </td>
-                    <td className="py-4 px-4">
+                    <td className="py-4 px-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-slate-900">{student.attendance}%</span>
                         <div className="w-16 bg-slate-200 rounded-full h-1.5 overflow-hidden">
@@ -148,11 +148,11 @@ export default function StudentsBatchesView({
                         </div>
                       </div>
                     </td>
-                    <td className="py-4 px-4">
+                    <td className="py-4 px-4 whitespace-nowrap">
                       <div className="text-slate-900 font-bold">₹{student.paidFee.toLocaleString('en-IN')} paid</div>
                       <div className="text-[11px] text-slate-400">Total: ₹{student.totalFee.toLocaleString('en-IN')}</div>
                     </td>
-                    <td className="py-4 px-4">
+                    <td className="py-4 px-4 whitespace-nowrap">
                       <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${
                         student.status === 'Active' ? 'bg-emerald-100 text-emerald-800' :
                         student.status === 'Overdue' ? 'bg-rose-100 text-rose-800' : 'bg-blue-100 text-blue-800'
@@ -160,7 +160,7 @@ export default function StudentsBatchesView({
                         {student.status}
                       </span>
                     </td>
-                    <td className="py-4 px-6 text-right">
+                    <td className="py-4 px-6 text-right whitespace-nowrap">
                       <button
                         onClick={onOpenCollectFee}
                         className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 text-xs font-semibold transition-colors mr-2"

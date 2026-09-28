@@ -256,11 +256,11 @@ export default function LoginPage({ onSelectRoleLogin }) {
                   Target Role: <span className="font-bold uppercase text-indigo-600">{selectedRoleId}</span>
                 </p>
               </div>
-              <div className="flex bg-slate-100 p-1 rounded-xl">
+              <div className="flex bg-slate-100 p-1 rounded-xl shrink-0">
                 <button
                   type="button"
                   onClick={() => { setIsSignUp(false); setErrorMsg(''); setSuccessMsg(''); }}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
                     !isSignUp ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900'
                   }`}
                 >
@@ -269,7 +269,7 @@ export default function LoginPage({ onSelectRoleLogin }) {
                 <button
                   type="button"
                   onClick={() => { setIsSignUp(true); setErrorMsg(''); setSuccessMsg(''); }}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
                     isSignUp ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-500 hover:text-slate-900'
                   }`}
                 >
