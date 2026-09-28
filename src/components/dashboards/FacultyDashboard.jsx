@@ -437,7 +437,7 @@ class StudentTerminal(models.Model):
           </button>
 
           {/* Availability Switcher */}
-          <div className="bg-slate-100 p-1 rounded-2xl border border-slate-200 flex items-center gap-1">
+          <div className="bg-slate-100 p-1 rounded-2xl border border-slate-200 flex flex-wrap items-center gap-1">
             {[
               { label: 'In Lab', val: 'In Session', color: 'bg-emerald-600 text-white' },
               { label: 'Ready', val: 'Ready', color: 'bg-blue-600 text-white' },
@@ -455,7 +455,7 @@ class StudentTerminal(models.Model):
                   }
                   showToast(`Status updated to "${st.label}" & broadcasted live to Admin!`);
                 }}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                   facultyStatus === st.val
                     ? `${st.color} shadow-xs`
                     : 'text-slate-600 hover:text-slate-900'
