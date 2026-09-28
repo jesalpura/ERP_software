@@ -1389,26 +1389,26 @@ class StudentTerminal(models.Model):
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-500">Attendance:</span>
-                    <span className="text-xs font-bold text-emerald-600">{studentAttendance[s.id] || s.attendance}%</span>
-                    <div className="w-16 bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                    <span className="text-xs text-slate-500 whitespace-nowrap">Attendance:</span>
+                    <span className="text-xs font-bold text-emerald-600 whitespace-nowrap">{studentAttendance[s.id] || s.attendance}%</span>
+                    <div className="w-16 bg-slate-200 rounded-full h-1.5 overflow-hidden shrink-0">
                       <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${studentAttendance[s.id] || s.attendance}%` }}></div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <button
                       onClick={() => handleMarkPresent(s.id)}
-                      className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[11px] font-bold transition-colors border border-emerald-200 flex items-center gap-1"
+                      className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[11px] font-bold transition-colors border border-emerald-200 flex items-center gap-1 shrink-0 whitespace-nowrap"
                     >
-                      <UserCheck className="w-3 h-3" /> Present
+                      <UserCheck className="w-3 h-3 shrink-0" /> Present
                     </button>
                     <button
                       onClick={() => handleMarkAbsent(s.id)}
-                      className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-bold transition-colors border border-rose-200 flex items-center gap-1"
+                      className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-bold transition-colors border border-rose-200 flex items-center gap-1 shrink-0 whitespace-nowrap"
                     >
-                      <UserX className="w-3 h-3" /> Absent
+                      <UserX className="w-3 h-3 shrink-0" /> Absent
                     </button>
                   </div>
                 </div>
