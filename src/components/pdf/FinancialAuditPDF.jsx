@@ -1,6 +1,5 @@
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
-import { useSiteConfig } from '../../context/SiteConfigContext';
 
 const styles = StyleSheet.create({
   page: {
@@ -101,8 +100,7 @@ const styles = StyleSheet.create({
   }
 });
 
-export default function FinancialAuditPDF({ transactions = [], totalCollection = 4850000 }) {
-  const { websiteConfig, pdfConfig } = useSiteConfig();
+export default function FinancialAuditPDF({ transactions = [], totalCollection = 4850000, websiteConfig, pdfConfig }) {
   const years = [
     { year: '2024 - 2025 (YTD)', rev: totalCollection, exp: 1240000, net: totalCollection - 1240000 },
     { year: '2023 - 2024', rev: 4120000, exp: 1180000, net: 2940000 },

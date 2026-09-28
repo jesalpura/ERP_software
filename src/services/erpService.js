@@ -69,6 +69,8 @@ const formatFaculty = (f) => ({
   punchTime: f.punch_time || f.punchTime,
   status: f.status,
   salary: Number(f.salary || 0),
+  honorarium: Number(f.honorarium || 0),
+  disbursed: Boolean(f.disbursed),
   avatar: f.avatar,
   assignedBatches: f.assigned_batches || f.assignedBatches || [],
   prReviewsCount: f.pr_reviews_count || f.prReviewsCount || 0

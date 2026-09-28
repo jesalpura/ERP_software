@@ -1,4 +1,5 @@
 import React, { useState, lazy, Suspense } from 'react';
+import { useSiteConfig } from '../../context/SiteConfigContext';
 
 // Lazy-load heavy view/PDF chunks
 const FeeLedgerView      = lazy(() => import('../views/FeeLedgerView'));
@@ -28,7 +29,7 @@ export default function FinanceDashboard({
   transactions,
   students,
   faculty,
-  expenses,
+  expenses: initialExpenses,
   activeTab: parentActiveTab,
   setActiveTab: parentSetActiveTab,
   onViewReceipt,
@@ -36,8 +37,12 @@ export default function FinanceDashboard({
   onUpdateFacultyDisbursement,
   onDisburseAllFaculty
 }) {
+  const { websiteConfig, pdfConfig } = useSiteConfig();
   const validTabIds = ['overview', 'yearly-growth', 'student-collections', 'faculty-payroll', 'expense-ledger'];
   const [internalTab, setInternalTab] = useState('overview');
+  
+  // Local state for expenses to make them editable
+  const [expenses, setExpenses] = useState(initialExpenses || []);
 
   const currentTab = parentActiveTab && validTabIds.includes(parentActiveTab)
     ? parentActiveTab
@@ -57,6 +62,37 @@ export default function FinanceDashboard({
     { id: 'faculty-payroll', label: 'Faculty Payroll & Honorarium', icon: DollarSign },
     { id: 'expense-ledger', label: 'Expense Ledger & Audit', icon: ShieldCheck },
   ];
+
+  const handleLogNewExpense = () => {
+    const amountStr = prompt('Enter expense amount (e.g. 5000):');
+    if (!amountStr) return;
+    const amount = parseInt(amountStr);
+    if (isNaN(amount) || amount <= 0) return alert('Invalid amount');
+    
+    const category = prompt('Enter category (e.g. Maintenance, Hardware):') || 'Miscellaneous';
+    const description = prompt('Enter description:') || 'New logged expense';
+    const vendor = prompt('Enter vendor/payee name:') || 'Unknown Vendor';
+    
+    const newExp = {
+      id: `EXP-2024-${Math.floor(Math.random() * 900) + 100}`,
+      category,
+      description,
+      vendor,
+      amount,
+      status: 'Pending',
+      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    };
+    
+    setExpenses([newExp, ...expenses]);
+  };
+
+  const handleToggleExpenseStatus = (id) => {
+    setExpenses(expenses.map(exp => 
+      exp.id === id 
+        ? { ...exp, status: exp.status === 'Cleared' ? 'Pending' : 'Cleared' } 
+        : exp
+    ));
+  };
 
   const totalFeeCollected = transactions.reduce((acc, t) => acc + t.amount, 0) + 319000;
   const totalExpenses = expenses.reduce((acc, e) => acc + e.amount, 0);
@@ -235,7 +271,7 @@ export default function FinanceDashboard({
               </div>
               <Suspense fallback={<span className="text-xs text-slate-400">Preparing PDF…</span>}>
                 <PDFDownloadButton
-                  document={<FinancialAuditPDF totalCollection={totalFeeCollected} />}
+                  document={<FinancialAuditPDF totalCollection={totalFeeCollected} websiteConfig={websiteConfig} pdfConfig={pdfConfig} />}
                   fileName="Institutional_Financial_Audit_Report_2024.pdf"
                   buttonText="Download Audit PDF"
                   variant="emerald"
@@ -394,7 +430,7 @@ export default function FinanceDashboard({
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
           <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <h3 className="font-bold text-slate-900 text-sm">Operational Expense Audit Ledger</h3>
-            <button onClick={() => alert('Expense voucher recorded.')} className="px-3.5 py-1.5 rounded-xl bg-slate-100 text-slate-800 text-xs font-semibold hover:bg-slate-200 self-start sm:self-auto whitespace-nowrap">
+            <button onClick={handleLogNewExpense} className="px-3.5 py-1.5 rounded-xl bg-slate-100 text-slate-800 text-xs font-semibold hover:bg-slate-200 self-start sm:self-auto whitespace-nowrap">
               + Log New Expense
             </button>
           </div>
@@ -420,7 +456,18 @@ export default function FinanceDashboard({
                     <td className="py-3.5 px-4 text-slate-600 hidden md:table-cell">{exp.description}</td>
                     <td className="py-3.5 px-4 text-slate-500 hidden lg:table-cell">{exp.vendor}</td>
                     <td className="py-3.5 px-4 font-bold text-rose-600 whitespace-nowrap">&#8377;{exp.amount.toLocaleString('en-IN')}</td>
-                    <td className="py-3.5 px-4 sm:px-6 text-right font-semibold text-emerald-600 whitespace-nowrap">{exp.status}</td>
+                    <td className="py-3.5 px-4 sm:px-6 text-right font-semibold whitespace-nowrap">
+                      <button 
+                        onClick={() => handleToggleExpenseStatus(exp.id)}
+                        className={`px-2 py-1 rounded text-[10px] uppercase font-bold border transition-colors ${
+                          exp.status === 'Cleared' 
+                            ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'
+                            : 'bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100'
+                        }`}
+                      >
+                        {exp.status}
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -440,7 +487,18 @@ export default function FinanceDashboard({
                   </div>
                   <div className="text-right shrink-0">
                     <span className="font-extrabold text-rose-600 text-base">&#8377;{exp.amount.toLocaleString('en-IN')}</span>
-                    <p className="text-emerald-600 font-semibold text-xs mt-0.5">{exp.status}</p>
+                    <div className="mt-1">
+                      <button 
+                        onClick={() => handleToggleExpenseStatus(exp.id)}
+                        className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold border transition-colors ${
+                          exp.status === 'Cleared' 
+                            ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'
+                            : 'bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100'
+                        }`}
+                      >
+                        {exp.status}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

@@ -38,6 +38,8 @@ import {
   MessageSquare
 } from 'lucide-react';
 
+import { useSiteConfig } from '../../context/SiteConfigContext';
+
 export default function FacultyDashboard({ 
   faculty, 
   students: initialStudents, 
@@ -58,6 +60,7 @@ export default function FacultyDashboard({
   onSendPcMessage,
   onUpdatePcTerminal
 }) {
+  const { websiteConfig, pdfConfig } = useSiteConfig();
   const [localActiveTab, setLocalActiveTab] = useState('overview');
   const activeTab = parentActiveTab !== undefined ? parentActiveTab : localActiveTab;
   const setActiveTab = parentSetActiveTab || setLocalActiveTab;
@@ -291,7 +294,10 @@ class StudentTerminal(models.Model):
     return matchesSearch && matchesBatch;
   });
 
-  const activeLabTerminals = pcTerminals.filter((t) => t.labId === selectedLabId);
+  const activeLabTerminals = pcTerminals.filter((t) => {
+    if (!t.labId) return false;
+    return t.labId.replace('-', ' ').toLowerCase() === selectedLabId.toLowerCase() || t.labId === selectedLabId;
+  });
   const currentSeat = activeLabTerminals.find((t) => t.pcNumber === selectedPcNumber) || activeLabTerminals[0] || null;
 
   // Realtime PC terminal messages for selected terminal
@@ -871,7 +877,7 @@ class StudentTerminal(models.Model):
               <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-700">
+                    <tr className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-700 whitespace-nowrap">
                       <th className="p-3 border-r border-slate-200 dark:border-slate-700">Day</th>
                       <th className="p-3 border-r border-slate-200 dark:border-slate-700">Assigned Session</th>
                       <th className="p-3 border-r border-slate-200 dark:border-slate-700">Time Slot</th>
@@ -900,14 +906,14 @@ class StudentTerminal(models.Model):
                         return (
                           <tr key={key} className="hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
                             {idx === 0 && (
-                              <td rowSpan={dayItems.length} className="p-3 font-bold text-slate-900 dark:text-white border-r border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-800/30">
+                              <td rowSpan={dayItems.length} className="p-3 font-bold text-slate-900 dark:text-white border-r border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-800/30 whitespace-nowrap">
                                 {day}
                               </td>
                             )}
-                            <td className="p-3 font-extrabold text-indigo-700 dark:text-indigo-300 border-r border-slate-100 dark:border-slate-800">{val.course}</td>
-                            <td className="p-3 font-mono text-slate-600 dark:text-slate-300 border-r border-slate-100 dark:border-slate-800">{timeSlot}</td>
-                            <td className="p-3 font-bold text-slate-700 dark:text-slate-300 border-r border-slate-100 dark:border-slate-800">{val.batch}</td>
-                            <td className="p-3 font-bold text-emerald-700 dark:text-emerald-400">{val.lab}</td>
+                            <td className="p-3 font-extrabold text-indigo-700 dark:text-indigo-300 border-r border-slate-100 dark:border-slate-800 whitespace-nowrap">{val.course}</td>
+                            <td className="p-3 font-mono text-slate-600 dark:text-slate-300 border-r border-slate-100 dark:border-slate-800 whitespace-nowrap">{timeSlot}</td>
+                            <td className="p-3 font-bold text-slate-700 dark:text-slate-300 border-r border-slate-100 dark:border-slate-800 whitespace-nowrap">{val.batch}</td>
+                            <td className="p-3 font-bold text-emerald-700 dark:text-emerald-400 whitespace-nowrap">{val.lab}</td>
                           </tr>
                         );
                       });
@@ -1308,7 +1314,7 @@ class StudentTerminal(models.Model):
           <div className="hidden sm:block overflow-x-auto w-full">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-slate-50 text-[11px] text-slate-400 font-bold uppercase tracking-wider">
+                <tr className="bg-slate-50 text-[11px] text-slate-400 font-bold uppercase tracking-wider whitespace-nowrap">
                   <th className="py-3 px-4 sm:px-6">Student & Roll #</th>
                   <th className="py-3 px-4">Batch</th>
                   <th className="py-3 px-4">Attendance</th>
@@ -1320,7 +1326,7 @@ class StudentTerminal(models.Model):
               <tbody className="divide-y divide-slate-100 text-xs">
                 {filteredStudents.map((s) => (
                   <tr key={s.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3 px-4 sm:px-6">
+                    <td className="py-3 px-4 sm:px-6 whitespace-nowrap">
                       <div className="flex items-center gap-2 sm:gap-3">
                         <img src={s.avatar} alt={s.name} className="w-8 h-8 rounded-full object-cover border border-slate-200 shrink-0" />
                         <div className="min-w-0">
@@ -1330,7 +1336,7 @@ class StudentTerminal(models.Model):
                       </div>
                     </td>
                     <td className="py-3 px-4 font-semibold text-slate-700 whitespace-nowrap">{s.batch}</td>
-                    <td className="py-3 px-4 font-bold text-emerald-600">
+                    <td className="py-3 px-4 font-bold text-emerald-600 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <span>{studentAttendance[s.id] || s.attendance}%</span>
                         <div className="w-12 bg-slate-200 rounded-full h-1.5 overflow-hidden hidden lg:block">
@@ -1338,24 +1344,24 @@ class StudentTerminal(models.Model):
                         </div>
                       </div>
                     </td>
-                    <td className="py-3 px-4">
+                    <td className="py-3 px-4 whitespace-nowrap">
                       <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-extrabold text-[11px] border border-indigo-100 whitespace-nowrap">
                         {studentGrades[s.id] || s.gpa}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-slate-600 hidden md:table-cell">{s.projectStatus}</td>
-                    <td className="py-3 px-4 sm:px-6 text-right">
+                    <td className="py-3 px-4 text-slate-600 hidden md:table-cell whitespace-nowrap">{s.projectStatus}</td>
+                    <td className="py-3 px-4 sm:px-6 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1">
                         <button 
                           onClick={() => handleMarkPresent(s.id)}
-                          className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition-colors border border-emerald-200"
+                          className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition-colors border border-emerald-200 cursor-pointer"
                           title="Mark Present (+2%)"
                         >
                           <UserCheck className="w-3.5 h-3.5" />
                         </button>
                         <button 
                           onClick={() => handleMarkAbsent(s.id)}
-                          className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 transition-colors border border-rose-200"
+                          className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 transition-colors border border-rose-200 cursor-pointer"
                           title="Mark Absent (-2%)"
                         >
                           <UserX className="w-3.5 h-3.5" />
@@ -1462,7 +1468,7 @@ class StudentTerminal(models.Model):
             </div>
             <Suspense fallback={<span className="text-xs text-slate-400">Preparing PDF…</span>}>
               <PDFDownloadButton
-                document={<FacultyPayslipPDF faculty={currentFaculty} />}
+                document={<FacultyPayslipPDF faculty={currentFaculty} websiteConfig={websiteConfig} pdfConfig={pdfConfig} />}
                 fileName={`Payslip_${currentFaculty?.name ? currentFaculty.name.replace(/\s+/g, '_') : 'Faculty'}_Oct2024.pdf`}
                 buttonText="Download Payslip PDF"
                 variant="indigo"
@@ -1485,7 +1491,7 @@ class StudentTerminal(models.Model):
                     </span>
                   </div>
                   <p className="text-emerald-700 font-medium mt-0.5">
-                    Your net earnings of <strong>₹{(currentFaculty.salary + currentFaculty.honorarium).toLocaleString('en-IN')}</strong> have been approved by Finance Desk and transferred to your registered bank account.
+                    Your net earnings of <strong>₹{((currentFaculty.salary || 0) + (currentFaculty.honorarium || 0)).toLocaleString('en-IN')}</strong> have been approved by Finance Desk and transferred to your registered bank account.
                   </p>
                 </div>
               </div>
@@ -1507,7 +1513,7 @@ class StudentTerminal(models.Model):
                     </span>
                   </div>
                   <p className="text-amber-800 font-medium mt-0.5">
-                    Your October 2024 earnings of <strong>₹{(currentFaculty.salary + currentFaculty.honorarium).toLocaleString('en-IN')}</strong> are currently pending clearance at the Finance Command Desk.
+                    Your October 2024 earnings of <strong>₹{((currentFaculty.salary || 0) + (currentFaculty.honorarium || 0)).toLocaleString('en-IN')}</strong> are currently pending clearance at the Finance Command Desk.
                   </p>
                 </div>
               </div>
@@ -1520,13 +1526,13 @@ class StudentTerminal(models.Model):
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200">
               <span className="text-slate-400 font-bold uppercase text-[11px]">Monthly Base Salary</span>
-              <div className="text-3xl font-extrabold text-slate-900 mt-1">₹{currentFaculty.salary.toLocaleString('en-IN')}</div>
+              <div className="text-3xl font-extrabold text-slate-900 mt-1">₹{(currentFaculty.salary || 0).toLocaleString('en-IN')}</div>
               <p className="text-xs text-slate-500 mt-2">Fixed monthly pay contract</p>
             </div>
 
             <div className="p-5 rounded-2xl bg-indigo-50/60 border border-indigo-100">
               <span className="text-indigo-700 font-bold uppercase text-[11px]">Lecture & Lab Honorarium</span>
-              <div className="text-3xl font-extrabold text-indigo-700 mt-1">₹{currentFaculty.honorarium.toLocaleString('en-IN')}</div>
+              <div className="text-3xl font-extrabold text-indigo-700 mt-1">₹{(currentFaculty.honorarium || 0).toLocaleString('en-IN')}</div>
               <p className="text-xs text-indigo-600 mt-2">Calculated for conducted practical lab sessions</p>
             </div>
           </div>
