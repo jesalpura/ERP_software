@@ -986,16 +986,17 @@ class StudentTerminal(models.Model):
                 <p className="text-xs text-slate-500 mt-0.5">Click any PC terminal node to open direct two-way live communication stream with assigned student</p>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col xs:flex-row items-stretch xs:items-center gap-2">
                 <button
                   onClick={() => setIsLabBroadcastModalOpen(true)}
-                  className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
                 >
-                  <Send className="w-3.5 h-3.5" />
+                  <Send className="w-3.5 h-3.5 shrink-0" />
                   <span>Broadcast to All PCs</span>
                 </button>
 
-                <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
+                {/* Lab selector — scrollable on mobile to prevent overflow */}
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl overflow-x-auto">
                   {labs.map((lab) => (
                     <button
                       key={lab.id}
@@ -1003,37 +1004,37 @@ class StudentTerminal(models.Model):
                         setSelectedLabId(lab.id);
                         setSelectedPcNumber(1);
                       }}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
                         selectedLabId === lab.id
                           ? 'bg-indigo-600 text-white shadow-xs'
                           : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
-                      {lab.id} ({lab.name.split(' ')[0]})
+                      {lab.id}
                     </button>
                   ))}
                 </div>
               </div>
             </div>
 
-            {/* Legend bar */}
-            <div className="flex items-center gap-4 text-xs font-medium text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
-              <span className="font-bold text-slate-700">Seat Status Legend:</span>
+            {/* Legend bar — wraps gracefully on mobile instead of overflowing */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-medium text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
+              <span className="font-bold text-slate-700 w-full xs:w-auto">Seat Status Legend:</span>
               <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-emerald-500"></span>
+                <span className="w-3 h-3 rounded bg-emerald-500 shrink-0"></span>
                 <span>Occupied ({activeLabTerminals.filter(s => s.status === 'Occupied').length})</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-amber-500 animate-pulse"></span>
-                <span>✋ Help Requested ({activeLabTerminals.filter(s => s.helpRequested).length})</span>
+                <span className="w-3 h-3 rounded bg-amber-500 animate-pulse shrink-0"></span>
+                <span>✋ Help ({activeLabTerminals.filter(s => s.helpRequested).length})</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-slate-200 border border-slate-300"></span>
+                <span className="w-3 h-3 rounded bg-slate-200 border border-slate-300 shrink-0"></span>
                 <span>Vacant ({activeLabTerminals.filter(s => s.status === 'Vacant').length})</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-indigo-600"></span>
-                <span>Selected Node</span>
+                <span className="w-3 h-3 rounded bg-indigo-600 shrink-0"></span>
+                <span>Selected</span>
               </div>
             </div>
 
@@ -1269,13 +1270,13 @@ class StudentTerminal(models.Model):
       {/* TAB 2: MY BATCHES & ROSTER */}
       {activeTab === 'batches' && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden flex flex-col">
-          <div className="p-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
             <div>
               <h3 className="font-bold text-slate-900 text-base">Enrolled Students Roster</h3>
               <p className="text-xs text-slate-500 mt-0.5">Showing students assigned to {currentFaculty.subject} batches</p>
             </div>
 
-            <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex flex-col xs:flex-row items-stretch xs:items-center gap-2 sm:gap-3">
               <div className="relative">
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
                 <input
@@ -1283,16 +1284,16 @@ class StudentTerminal(models.Model):
                   placeholder="Search student or roll #..."
                   value={rosterSearch}
                   onChange={(e) => setRosterSearch(e.target.value)}
-                  className="pl-8 pr-3 py-1.5 bg-slate-100 text-xs font-semibold rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 w-48"
+                  className="pl-8 pr-3 py-1.5 bg-slate-100 text-xs font-semibold rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 w-full xs:w-44"
                 />
               </div>
 
-              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl overflow-x-auto">
                 {['All', 'MERN-B1', 'MERN-B2', 'PYTHON-B1'].map((b) => (
                   <button
                     key={b}
                     onClick={() => setBatchFilter(b)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
                       batchFilter === b ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
@@ -1303,60 +1304,61 @@ class StudentTerminal(models.Model):
             </div>
           </div>
 
-          <div className="overflow-x-auto w-full">
+          {/* Desktop table — hidden on mobile */}
+          <div className="hidden sm:block overflow-x-auto w-full">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 text-[11px] text-slate-400 font-bold uppercase tracking-wider">
-                  <th className="py-3 px-6">Student & Roll #</th>
+                  <th className="py-3 px-4 sm:px-6">Student & Roll #</th>
                   <th className="py-3 px-4">Batch</th>
-                  <th className="py-3 px-4">Attendance Rate</th>
-                  <th className="py-3 px-4">Current Grade</th>
-                  <th className="py-3 px-4">Project Status</th>
-                  <th className="py-3 px-6 text-right">Quick Action</th>
+                  <th className="py-3 px-4">Attendance</th>
+                  <th className="py-3 px-4">Grade</th>
+                  <th className="py-3 px-4 hidden md:table-cell">Project</th>
+                  <th className="py-3 px-4 sm:px-6 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs">
                 {filteredStudents.map((s) => (
                   <tr key={s.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3.5 px-6">
-                      <div className="flex items-center gap-3">
-                        <img src={s.avatar} alt={s.name} className="w-8 h-8 rounded-full object-cover border border-slate-200" />
-                        <div>
-                          <span className="font-bold text-slate-900 block leading-tight">{s.name}</span>
+                    <td className="py-3 px-4 sm:px-6">
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <img src={s.avatar} alt={s.name} className="w-8 h-8 rounded-full object-cover border border-slate-200 shrink-0" />
+                        <div className="min-w-0">
+                          <span className="font-bold text-slate-900 block leading-tight truncate">{s.name}</span>
                           <span className="font-mono text-[11px] text-slate-400">{s.id}</span>
                         </div>
                       </div>
                     </td>
-                    <td className="py-3.5 px-4 font-semibold text-slate-700">{s.batch}</td>
-                    <td className="py-3.5 px-4 font-bold text-emerald-600">
+                    <td className="py-3 px-4 font-semibold text-slate-700 whitespace-nowrap">{s.batch}</td>
+                    <td className="py-3 px-4 font-bold text-emerald-600">
                       <div className="flex items-center gap-2">
                         <span>{studentAttendance[s.id] || s.attendance}%</span>
-                        <div className="w-16 bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                        <div className="w-12 bg-slate-200 rounded-full h-1.5 overflow-hidden hidden lg:block">
                           <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${studentAttendance[s.id] || s.attendance}%` }}></div>
                         </div>
                       </div>
                     </td>
-                    <td className="py-3.5 px-4">
-                      <span className="px-2.5 py-0.5 rounded bg-indigo-50 text-indigo-700 font-extrabold text-[11px] border border-indigo-100">
+                    <td className="py-3 px-4">
+                      <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-extrabold text-[11px] border border-indigo-100 whitespace-nowrap">
                         {studentGrades[s.id] || s.gpa}
                       </span>
                     </td>
-                    <td className="py-3.5 px-4 text-slate-600">{s.projectStatus}</td>
-                    <td className="py-3.5 px-6 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
+                    <td className="py-3 px-4 text-slate-600 hidden md:table-cell">{s.projectStatus}</td>
+                    <td className="py-3 px-4 sm:px-6 text-right">
+                      <div className="flex items-center justify-end gap-1">
                         <button 
                           onClick={() => handleMarkPresent(s.id)}
-                          className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[11px] font-bold transition-colors inline-flex items-center gap-1 border border-emerald-200"
+                          className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition-colors border border-emerald-200"
                           title="Mark Present (+2%)"
                         >
-                          <UserCheck className="w-3 h-3" /> Present
+                          <UserCheck className="w-3.5 h-3.5" />
                         </button>
                         <button 
                           onClick={() => handleMarkAbsent(s.id)}
-                          className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-bold transition-colors inline-flex items-center gap-1 border border-rose-200"
+                          className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 transition-colors border border-rose-200"
                           title="Mark Absent (-2%)"
                         >
-                          <UserX className="w-3 h-3" /> Absent
+                          <UserX className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </td>
@@ -1365,36 +1367,78 @@ class StudentTerminal(models.Model):
               </tbody>
             </table>
           </div>
+
+          {/* Mobile card list — visible only on small screens */}
+          <div className="sm:hidden flex flex-col divide-y divide-slate-100">
+            {filteredStudents.map((s) => (
+              <div key={s.id} className="p-4 flex flex-col gap-3">
+                <div className="flex items-center gap-3">
+                  <img src={s.avatar} alt={s.name} className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <span className="font-bold text-slate-900 text-sm block leading-tight truncate">{s.name}</span>
+                    <span className="font-mono text-[11px] text-slate-400">{s.id} • {s.batch}</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-extrabold text-xs border border-indigo-100 shrink-0">
+                    {studentGrades[s.id] || s.gpa}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-500">Attendance:</span>
+                    <span className="text-xs font-bold text-emerald-600">{studentAttendance[s.id] || s.attendance}%</span>
+                    <div className="w-16 bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                      <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${studentAttendance[s.id] || s.attendance}%` }}></div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => handleMarkPresent(s.id)}
+                      className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[11px] font-bold transition-colors border border-emerald-200 flex items-center gap-1"
+                    >
+                      <UserCheck className="w-3 h-3" /> Present
+                    </button>
+                    <button
+                      onClick={() => handleMarkAbsent(s.id)}
+                      className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-bold transition-colors border border-rose-200 flex items-center gap-1"
+                    >
+                      <UserX className="w-3 h-3" /> Absent
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       {/* TAB 3: ATTENDANCE & GRADING */}
       {activeTab === 'attendance-grading' && (
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col gap-5">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col gap-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-2">
             <div>
               <h3 className="font-bold text-slate-900 text-base">Batch Marksheet & Grading Desk</h3>
               <p className="text-xs text-slate-500 mt-0.5">Direct grade modification with live academic transcript updates</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {initialStudents.map((s) => (
-              <div key={s.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-4 hover:border-indigo-200 transition-all">
-                <div className="flex items-center gap-3">
-                  <img src={s.avatar} alt={s.name} className="w-10 h-10 rounded-full object-cover border border-slate-200" />
-                  <div>
-                    <span className="font-bold text-slate-900 text-sm block leading-tight">{s.name}</span>
-                    <span className="text-slate-400 text-xs font-mono">{s.id} • {s.course}</span>
+              <div key={s.id} className="p-3 sm:p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-col xs:flex-row xs:items-center justify-between gap-3 hover:border-indigo-200 transition-all">
+                <div className="flex items-center gap-3 min-w-0">
+                  <img src={s.avatar} alt={s.name} className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover border border-slate-200 shrink-0" />
+                  <div className="min-w-0">
+                    <span className="font-bold text-slate-900 text-sm block leading-tight truncate">{s.name}</span>
+                    <span className="text-slate-400 text-xs font-mono truncate block">{s.id}</span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-slate-500">Grade:</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">Grade:</span>
                   <select
                     value={studentGrades[s.id] || s.gpa}
                     onChange={(e) => handleGradeChange(s.id, e.target.value)}
-                    className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 font-extrabold text-indigo-700 text-xs outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs"
+                    className="px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 font-extrabold text-indigo-700 text-xs outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs"
                   >
                     <option value="O (Outstanding)">O (Outstanding)</option>
                     <option value="A+">A+</option>

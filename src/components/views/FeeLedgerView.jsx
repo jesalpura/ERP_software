@@ -134,9 +134,9 @@ export default function FeeLedgerView({ transactions, students, onViewReceipt, o
                   <td className="py-4 px-6 text-right">
                     <button
                       onClick={() => onViewReceipt(t)}
-                      className="px-3 py-1.5 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 font-semibold text-xs transition-colors inline-flex items-center gap-1.5"
+                      className="px-3 py-1.5 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 font-semibold text-xs transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0"
                     >
-                      <Eye className="w-3.5 h-3.5" /> View Receipt
+                      <Eye className="w-3.5 h-3.5 shrink-0" /> View Receipt
                     </button>
                   </td>
                 </tr>
