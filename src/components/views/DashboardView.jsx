@@ -31,7 +31,7 @@ export default function DashboardView({
   labs,
   faculty,
   notices = [],
-  onOpenRegister,
+  onOpenAssignFaculty,
   onOpenCollectFee,
   onOpenPublishNotice,
   onViewReceipt,
@@ -98,11 +98,11 @@ export default function DashboardView({
       <section className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <button
-            onClick={onOpenRegister}
+            onClick={() => setActiveView('students-batches')}
             className="group px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition-all shadow-xs flex items-center gap-2.5 text-xs font-bold"
           >
             <UserPlus className="w-4 h-4" />
-            <span>Register Student</span>
+            <span>Assign Faculty</span>
           </button>
 
           <button

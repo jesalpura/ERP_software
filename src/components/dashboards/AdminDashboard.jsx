@@ -23,13 +23,15 @@ export default function AdminDashboard({
   setSearchQuery,
   activeTab: parentActiveTab,
   setActiveTab: parentSetActiveTab,
-  onOpenRegister,
+  onOpenAssignFaculty,
   onOpenCollectFee,
   onOpenPublishNotice,
   onViewReceipt,
   complaintsAndRequests = [],
   onAddComplaintRequest,
-  onUpdateComplaintRequest
+  onUpdateComplaintRequest,
+  user,
+  adminsList = []
 }) {
   const [localActiveTab, setLocalActiveTab] = useState('overview');
   const activeTab = parentActiveTab !== undefined ? parentActiveTab : localActiveTab;
@@ -49,16 +51,24 @@ export default function AdminDashboard({
     { id: 'settings', label: 'Settings & Audit Logs', icon: Settings },
   ];
 
+  const currentAdmin = adminsList.find(a => a.email === user?.email) || { name: 'Administrator Command Center' };
+
   return (
     <div className="flex flex-col gap-6">
       {/* Role Banner with Action Buttons */}
       <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-base shadow-sm shrink-0">
-            AD
+          <div className="h-10 w-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-base shadow-sm shrink-0 overflow-hidden">
+            {currentAdmin.avatar ? (
+              <img src={currentAdmin.avatar} alt="Admin" className="w-full h-full object-cover" />
+            ) : (
+              "AD"
+            )}
           </div>
           <div>
-            <h2 className="font-bold text-slate-900 dark:text-white text-base">Administrator Command Center</h2>
+            <h2 className="font-bold text-slate-900 dark:text-white text-base">
+              {currentAdmin.name === 'Administrator Command Center' ? currentAdmin.name : `${currentAdmin.name} - Admin Portal`}
+            </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">Full control over campus admissions, faculty & student communication, and financial ledgers</p>
           </div>
         </div>
@@ -112,7 +122,7 @@ export default function AdminDashboard({
               labs={labs}
               faculty={faculty}
               notices={notices}
-              onOpenRegister={onOpenRegister}
+              onOpenAssignFaculty={onOpenAssignFaculty}
               onOpenCollectFee={onOpenCollectFee}
               onOpenPublishNotice={onOpenPublishNotice}
               onViewReceipt={onViewReceipt}
@@ -136,9 +146,11 @@ export default function AdminDashboard({
           {activeTab === 'students-batches' && (
             <StudentsBatchesView
               students={students}
+              faculty={faculty}
+              labs={labs}
               searchQuery={searchQuery}
               setSearchQuery={setSearchQuery}
-              onOpenRegister={onOpenRegister}
+              onOpenAssignFaculty={onOpenAssignFaculty}
               onOpenCollectFee={onOpenCollectFee}
             />
           )}

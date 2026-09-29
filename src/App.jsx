@@ -1,6 +1,7 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { websiteConfig } from './config/siteConfig';
 import LoginPage from './components/auth/LoginPage';
+import OnboardingPage from './components/auth/OnboardingPage';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import ErrorBoundary from './components/common/ErrorBoundary';
@@ -15,6 +16,7 @@ import RegisterStudentModal from './components/modals/RegisterStudentModal';
 import CollectFeeModal from './components/modals/CollectFeeModal';
 import ReceiptPreviewModal from './components/modals/ReceiptPreviewModal';
 import PublishNoticeModal from './components/modals/PublishNoticeModal';
+import AssignFacultyModal from './components/modals/AssignFacultyModal';
 
 import { 
   initialStudents, 
@@ -37,6 +39,7 @@ export default function App() {
   // Authentication & Role State (Supabase Auth & RBAC)
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [userRole, setUserRole] = useState(null); // 'admin' | 'faculty' | 'student' | 'finance'
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -53,14 +56,14 @@ export default function App() {
         const metadataRole = sessionUser.user_metadata?.role || sessionUser.app_metadata?.role;
         let authorizedRole = null;
 
-        // 1. Check strict email-based role rules
-        if (email.includes('admin')) {
+        // 1. Secure Demo Account Role Checks (replaces insecure .includes)
+        if (email.startsWith('admin@')) {
           authorizedRole = 'admin';
-        } else if (email.includes('faculty') || email.includes('instructor') || email.includes('teacher')) {
+        } else if (email.startsWith('faculty@') || email.startsWith('instructor@')) {
           authorizedRole = 'faculty';
-        } else if (email.includes('finance') || email.includes('account') || email.includes('billing')) {
+        } else if (email.startsWith('finance@') || email.startsWith('account@')) {
           authorizedRole = 'finance';
-        } else if (email.includes('student')) {
+        } else if (email.startsWith('student@')) {
           authorizedRole = 'student';
         }
 
@@ -81,10 +84,21 @@ export default function App() {
 
         setUserRole(authorizedRole);
         localStorage.setItem('supabase_selected_role', authorizedRole);
+
+        // Check if onboarding is needed
+        const isDemoAccount = email.includes('admin@') || email.includes('faculty@') || email.includes('student@') || email.includes('finance@');
+        const hasOnboarded = localStorage.getItem(`onboarded_${email}`);
+        
+        if (isDemoAccount || hasOnboarded === 'true') {
+          setNeedsOnboarding(false);
+        } else {
+          setNeedsOnboarding(true);
+        }
       } else {
         setUser(null);
         setIsAuthenticated(false);
         setUserRole(null);
+        setNeedsOnboarding(false);
       }
     };
 
@@ -116,6 +130,10 @@ export default function App() {
   const [assignments, setAssignments] = useState(initialAssignments);
   const [complaintsAndRequests, setComplaintsAndRequests] = useState(initialComplaintsAndRequests);
   const [weeklySchedule, setWeeklySchedule] = useState(initialWeeklySchedule);
+  
+  // Custom user lists for admin and finance created during onboarding
+  const [adminsList, setAdminsList] = useState([]);
+  const [financeList, setFinanceList] = useState([]);
 
   // Realtime Allocated PC Workstation Terminals & Messages
   const [pcTerminals, setPcTerminals] = useState(initialPcTerminals);
@@ -312,6 +330,24 @@ export default function App() {
       }
     });
 
+    const unsubscribeStudentCreated = erpService.subscribeToStudentCreated((newStudent) => {
+      if (newStudent) {
+        setStudents((prev) => {
+           if (prev.some(s => s.id === newStudent.id)) return prev;
+           return [newStudent, ...prev];
+        });
+      }
+    });
+
+    const unsubscribeFacultyCreated = erpService.subscribeToFacultyCreated((newFaculty) => {
+      if (newFaculty) {
+        setFaculty((prev) => {
+           if (prev.some(f => f.id === newFaculty.id)) return prev;
+           return [newFaculty, ...prev];
+        });
+      }
+    });
+
     return () => {
       isMounted = false;
       unsubscribeDb();
@@ -321,6 +357,8 @@ export default function App() {
       unsubscribeSchedule();
       unsubscribeFacultyStatus();
       unsubscribeFacultyDisbursement();
+      unsubscribeStudentCreated();
+      unsubscribeFacultyCreated();
     };
   }, []);
 
@@ -334,6 +372,8 @@ export default function App() {
   const [isCollectFeeOpen, setIsCollectFeeOpen] = useState(false);
   const [isPublishNoticeOpen, setIsPublishNoticeOpen] = useState(false);
   const [selectedReceiptTx, setSelectedReceiptTx] = useState(null);
+  const [isAssignFacultyOpen, setIsAssignFacultyOpen] = useState(false);
+  const [selectedAssignStudent, setSelectedAssignStudent] = useState(null);
 
   const [activeTab, setActiveTab] = useState('overview');
 
@@ -392,17 +432,26 @@ export default function App() {
     return { success: true, message: '✅ Attendance verified & recorded for today (+2%)!' };
   };
 
-  const handleMarkStudentAttendance = (studentId, status) => {
+  const handleMarkStudentAttendance = async (studentId, status) => {
+    let newAttValue = 80;
     setStudents((prev) =>
       prev.map((s) => {
         if (s.id === studentId) {
           const delta = status === 'present' ? 2 : -2;
           const newAtt = Math.min(100, Math.max(0, (s.attendance || 80) + delta));
+          newAttValue = newAtt;
           return { ...s, attendance: newAtt };
         }
         return s;
       })
     );
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase.from('students').update({ attendance: newAttValue }).eq('id', studentId);
+      } catch (err) {
+        console.error('Failed to update attendance in Supabase:', err);
+      }
+    }
   };
 
   const handleEndQrSession = () => {
@@ -425,8 +474,20 @@ export default function App() {
 
   // Authentication Handlers
   const handleRoleLogin = (roleObj) => {
-    setUser({ email: roleObj.email || `${roleObj.id}@${websiteConfig.domain}` });
+    const email = roleObj.email || `${roleObj.id}@${websiteConfig.domain}`;
+    setUser({ email });
     setUserRole(roleObj.id);
+    
+    // Check onboarding for this user
+    const isDemoAccount = email.includes('admin@') || email.includes('faculty@') || email.includes('student@') || email.includes('finance@');
+    const hasOnboarded = localStorage.getItem(`onboarded_${email}`);
+    
+    if (isDemoAccount || hasOnboarded === 'true') {
+      setNeedsOnboarding(false);
+    } else {
+      setNeedsOnboarding(true);
+    }
+
     setActiveTab('overview');
     setIsAuthenticated(true);
   };
@@ -443,8 +504,12 @@ export default function App() {
 
   // Action Handlers with Supabase Persistence
   const handleRegisterStudent = async (newStudent) => {
-    setStudents((prev) => [newStudent, ...prev]);
+    setStudents((prev) => {
+      if (prev.some(s => s.id === newStudent.id)) return prev;
+      return [newStudent, ...prev];
+    });
     await erpService.addStudent(newStudent);
+    erpService.broadcastStudentCreated(newStudent);
   };
 
   const handleAddTransaction = async (newTx) => {
@@ -488,6 +553,13 @@ export default function App() {
     await erpService.updateFacultyDisbursement(facultyId, disbursed);
   };
 
+  const handleAssignFaculty = async (studentId, { lab, batch }) => {
+    setStudents((prev) =>
+      prev.map((s) => (s.id === studentId ? { ...s, lab, batch } : s))
+    );
+    await erpService.updateStudentAssignment(studentId, { lab, batch });
+  };
+
   const handleDisburseAllFaculty = async () => {
     setFaculty((prev) =>
       prev.map((f) => ({ ...f, disbursed: true }))
@@ -495,6 +567,84 @@ export default function App() {
     const pendingList = faculty.filter((f) => !f.disbursed);
     for (const f of pendingList) {
       await erpService.updateFacultyDisbursement(f.id, true);
+    }
+  };
+
+  const handleCompleteOnboarding = async (formData) => {
+    if (!user || !user.email) return;
+    
+    // 1. Mark as onboarded in local storage
+    localStorage.setItem(`onboarded_${user.email}`, 'true');
+    setNeedsOnboarding(false);
+
+    // 2. Create actual profile based on role
+    if (userRole === 'student') {
+      const newStudent = {
+        id: `AT-${new Date().getFullYear()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
+        name: formData.fullName,
+        avatar: formData.avatar || "https://images.unsplash.com/photo-1511367461989-f85a21fda167?w=150",
+        course: formData.department || "General",
+        batch: formData.batchPref || "Morning",
+        lab: "Lab 01",
+        totalFee: 30000,
+        paidFee: 0,
+        pendingFee: 30000,
+        status: "Active",
+        attendance: 100,
+        phone: formData.phone,
+        address: formData.address,
+        email: user.email,
+        joinedDate: new Date().toISOString().split('T')[0],
+        gpa: "N/A",
+        projectStatus: "Just Joined"
+      };
+      await handleRegisterStudent(newStudent);
+    } else if (userRole === 'faculty') {
+      const newFaculty = {
+        id: `FAC-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
+        name: formData.fullName,
+        role: "Instructor",
+        subject: formData.department || "General",
+        experience: formData.experience,
+        address: formData.address,
+        punchTime: "09:00 AM",
+        status: "Present",
+        salary: 50000,
+        honorarium: 0,
+        disbursed: false,
+        avatar: formData.avatar || "https://images.unsplash.com/photo-1511367461989-f85a21fda167?w=150",
+        assignedBatches: [],
+        prReviewsCount: 0,
+        email: user.email,
+        phone: formData.phone
+      };
+      setFaculty((prev) => {
+        if (prev.some(f => f.id === newFaculty.id)) return prev;
+        return [newFaculty, ...prev];
+      });
+      erpService.broadcastFacultyCreated(newFaculty);
+    } else if (userRole === 'admin') {
+      const newAdmin = {
+        id: `ADM-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
+        name: formData.fullName,
+        department: formData.department || "Administration",
+        adminKey: formData.adminKey,
+        avatar: formData.avatar || "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150",
+        email: user.email,
+        phone: formData.phone
+      };
+      setAdminsList((prev) => [...prev, newAdmin]);
+    } else if (userRole === 'finance') {
+      const newFinance = {
+        id: `FIN-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
+        name: formData.fullName,
+        department: formData.department || "Finance",
+        software: formData.software,
+        avatar: formData.avatar || "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150",
+        email: user.email,
+        phone: formData.phone
+      };
+      setFinanceList((prev) => [...prev, newFinance]);
     }
   };
 
@@ -516,13 +666,18 @@ export default function App() {
             setSearchQuery={setSearchQuery}
             activeTab={activeTab}
             setActiveTab={setActiveTab}
-            onOpenRegister={() => setIsRegisterOpen(true)}
+            onOpenAssignFaculty={(student) => {
+              setSelectedAssignStudent(student);
+              setIsAssignFacultyOpen(true);
+            }}
             onOpenCollectFee={() => setIsCollectFeeOpen(true)}
             onOpenPublishNotice={() => setIsPublishNoticeOpen(true)}
             onViewReceipt={(tx) => setSelectedReceiptTx(tx)}
             complaintsAndRequests={complaintsAndRequests}
             onAddComplaintRequest={handleAddComplaintRequest}
             onUpdateComplaintRequest={handleUpdateComplaintRequest}
+            user={user}
+            adminsList={adminsList}
           />
         );
         break;
@@ -530,9 +685,11 @@ export default function App() {
       case 'faculty':
         dashboard = (
           <FacultyDashboard
+            user={user}
             faculty={faculty}
             students={students}
             labs={labs}
+            assignments={assignments}
             weeklySchedule={weeklySchedule}
             activeTab={activeTab}
             setActiveTab={setActiveTab}
@@ -555,6 +712,7 @@ export default function App() {
       case 'student':
         dashboard = (
           <StudentDashboard
+            user={user}
             students={students}
             transactions={transactions}
             notices={notices}
@@ -577,6 +735,8 @@ export default function App() {
       case 'finance':
         dashboard = (
           <FinanceDashboard
+            user={user}
+            financeList={financeList}
             transactions={transactions}
             students={students}
             faculty={faculty}
@@ -616,6 +776,17 @@ export default function App() {
     return <LoginPage onSelectRoleLogin={handleRoleLogin} />;
   }
 
+  // If authenticated but needs onboarding, show OnboardingPage
+  if (needsOnboarding) {
+    return (
+      <OnboardingPage 
+        userRole={userRole} 
+        email={user?.email} 
+        onComplete={handleCompleteOnboarding} 
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex font-sans transition-colors duration-200">
       {/* Sidebar - Locked to authenticated role */}
@@ -638,7 +809,7 @@ export default function App() {
           onSwitchRole={handleSwitchRole}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
-          onOpenRegister={() => setIsRegisterOpen(true)}
+          onOpenRegister={() => setActiveTab('students-batches')}
           onOpenCollectFee={() => setIsCollectFeeOpen(true)}
           onOpenPublishNotice={() => setIsPublishNoticeOpen(true)}
           onSignOut={handleSignOut}
@@ -678,6 +849,15 @@ export default function App() {
         isOpen={isPublishNoticeOpen}
         onClose={() => setIsPublishNoticeOpen(false)}
         onPublishNotice={handlePublishNotice}
+      />
+
+      <AssignFacultyModal
+        isOpen={isAssignFacultyOpen}
+        onClose={() => { setIsAssignFacultyOpen(false); setSelectedAssignStudent(null); }}
+        student={selectedAssignStudent}
+        faculty={faculty}
+        labs={labs}
+        onSave={handleAssignFaculty}
       />
     </div>
   );

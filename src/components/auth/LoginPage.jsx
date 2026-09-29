@@ -383,6 +383,25 @@ export default function LoginPage({ onSelectRoleLogin }) {
                   <span>1-Click Demo Login</span>
                 </button>
               </div>
+
+
+              <div className="p-2.5 rounded-xl bg-indigo-50 border border-indigo-200/80 text-[11px] text-slate-600 flex items-center justify-between mt-1">
+                <div>
+                  <span className="font-mono text-slate-900 font-bold block">Rate Limit Bypass (Test Only)</span>
+                  <span className="text-slate-500 font-mono text-[10px]">Jump straight to Profile Setup</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const randomSuffix = Math.floor(Math.random() * 10000);
+                    onSelectRoleLogin({ id: selectedRoleId, email: `newuser${randomSuffix}@test.com` });
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-[11px] transition-colors shadow-xs cursor-pointer flex items-center gap-1"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>Test "Create Account"</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

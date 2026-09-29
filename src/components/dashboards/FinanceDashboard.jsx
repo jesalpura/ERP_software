@@ -35,7 +35,9 @@ export default function FinanceDashboard({
   onViewReceipt,
   onOpenCollectFee,
   onUpdateFacultyDisbursement,
-  onDisburseAllFaculty
+  onDisburseAllFaculty,
+  user,
+  financeList = []
 }) {
   const { websiteConfig, pdfConfig } = useSiteConfig();
   const validTabIds = ['overview', 'yearly-growth', 'student-collections', 'faculty-payroll', 'expense-ledger'];
@@ -144,16 +146,24 @@ export default function FinanceDashboard({
 
   const maxRevenue = Math.max(...yearlyGrowthData.map((d) => d.grossRevenue));
 
+  const currentFinanceUser = financeList.find(f => f.email === user?.email) || { name: 'Finance & Accounts Command Center' };
+
   return (
     <div className="flex flex-col gap-6 pb-12">
       {/* Role Banner */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-teal-600 text-white flex items-center justify-center font-bold text-base shadow-sm">
-            FN
+          <div className="h-10 w-10 rounded-xl bg-teal-600 text-white flex items-center justify-center font-bold text-base shadow-sm overflow-hidden shrink-0">
+            {currentFinanceUser.avatar ? (
+              <img src={currentFinanceUser.avatar} alt="Finance" className="w-full h-full object-cover" />
+            ) : (
+              "FN"
+            )}
           </div>
           <div>
-            <h2 className="font-bold text-slate-900 text-base">Finance & Accounts Command Center</h2>
+            <h2 className="font-bold text-slate-900 text-base">
+              {currentFinanceUser.name === 'Finance & Accounts Command Center' ? currentFinanceUser.name : `${currentFinanceUser.name} - Finance Portal`}
+            </h2>
             <p className="text-xs text-slate-500">Real-time revenue ledgers, multi-year growth analytics, student fee collections, and payroll audit</p>
           </div>
         </div>
