@@ -12,7 +12,7 @@
   "dependencies": {
     "@ishubhamx/panchangam-js": "^3.0.0",
     "@react-pdf/renderer": "^4.9.0",
-    "@supabase/supabase-js": "^2.117.0",
+    "@supabase/supabase-js": "^2.117.2",
     "@tailwindcss/vite": "^4.3.3",
     "date-holidays": "^3.37.0",
     "html5-qrcode": "^2.3.8",

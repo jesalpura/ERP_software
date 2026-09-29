@@ -245,6 +245,48 @@ export const erpService = {
     }
   },
 
+  broadcastStudentCreated(newStudent) {
+    realtimeEngine.broadcast('student-created', newStudent);
+  },
+
+  subscribeToStudentCreated(onStudentCreated) {
+    return realtimeEngine.subscribe((event, payload) => {
+      if (event === 'student-created' && onStudentCreated) onStudentCreated(payload);
+    });
+  },
+
+  // Update student's lab/batch/faculty assignment (admin action)
+  async updateStudentAssignment(studentId, { lab, batch }) {
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { error } = await supabase
+          .from('students')
+          .update({ lab, batch })
+          .eq('id', studentId);
+        if (error) console.error('Error updating student assignment:', error);
+      } catch (err) {
+        console.error('updateStudentAssignment failed:', err);
+      }
+    }
+    realtimeEngine.broadcast('student-assignment-updated', { studentId, lab, batch });
+  },
+
+  subscribeToStudentAssignmentUpdated(onUpdated) {
+    return realtimeEngine.subscribe((event, payload) => {
+      if (event === 'student-assignment-updated' && onUpdated) onUpdated(payload);
+    });
+  },
+
+  broadcastFacultyCreated(newFaculty) {
+    realtimeEngine.broadcast('faculty-created', newFaculty);
+  },
+
+  subscribeToFacultyCreated(onFacultyCreated) {
+    return realtimeEngine.subscribe((event, payload) => {
+      if (event === 'faculty-created' && onFacultyCreated) onFacultyCreated(payload);
+    });
+  },
+
   // 2. TRANSACTIONS
   async getTransactions() {
     if (!isSupabaseConfigured) return initialTransactions;

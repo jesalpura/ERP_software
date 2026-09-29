@@ -5,9 +5,13 @@ import { erpService } from '../../services/erpService';
 // Lazy-load heavy view/PDF chunks
 const ComplaintsRequestsView = lazy(() => import('../views/ComplaintsRequestsView'));
 const CalendarView           = lazy(() => import('../views/CalendarView'));
-const FacultyPayslipPDF      = lazy(() => import('../pdf/FacultyPayslipPDF'));
 import CalendarLoader         from '../common/CalendarLoader';
 import PDFDownloadButton from '../pdf/PDFDownloadButton';
+import SubmissionsTab from './faculty/SubmissionsTab';
+import SalaryTab from './faculty/SalaryTab';
+import BatchesTab from './faculty/BatchesTab';
+import AllocatedPCsTab from './faculty/AllocatedPCsTab';
+import OverviewTab from './faculty/OverviewTab';
 import { 
   GraduationCap, 
   Calendar, 
@@ -44,6 +48,7 @@ export default function FacultyDashboard({
   faculty, 
   students: initialStudents, 
   labs, 
+  assignments: initialAssignments = [],
   weeklySchedule = {},
   activeTab: parentActiveTab, 
   setActiveTab: parentSetActiveTab,
@@ -56,29 +61,28 @@ export default function FacultyDashboard({
   onUpdateComplaintRequest,
   onUpdateFacultyStatus,
   pcTerminals = [],
-  pcMessages = [],
   onSendPcMessage,
-  onUpdatePcTerminal
+  onUpdatePcTerminal,
+  user
 }) {
   const { websiteConfig, pdfConfig } = useSiteConfig();
   const [localActiveTab, setLocalActiveTab] = useState('overview');
   const activeTab = parentActiveTab !== undefined ? parentActiveTab : localActiveTab;
   const setActiveTab = parentSetActiveTab || setLocalActiveTab;
 
-  const [selectedFacultyId, setSelectedFacultyId] = useState('FAC-001');
+  const [selectedFacultyId, setSelectedFacultyId] = useState(null);
+  
+  const loggedInFaculty = faculty.find(f => f.email === user?.email) || faculty[0];
+  const currentFaculty = selectedFacultyId ? (faculty.find((f) => f.id === selectedFacultyId) || loggedInFaculty) : loggedInFaculty;
+
   const [facultyStatus, setFacultyStatus] = useState('In Session');
   const [selectedLabId, setSelectedLabId] = useState('LAB-01');
-  const [selectedPcNumber, setSelectedPcNumber] = useState(14); // Default to PC-14
   const [selectedScheduleDay, setSelectedScheduleDay] = useState('Monday');
 
-  // Realtime PC Terminal Communication States
-  const [terminalChatInput, setTerminalChatInput] = useState('');
-  const [labBroadcastInput, setLabBroadcastInput] = useState('');
-  const [isLabBroadcastModalOpen, setIsLabBroadcastModalOpen] = useState(false);
+  // PC Terminal states (terminalChatInput, labBroadcastInput, isLabBroadcastModalOpen, selectedPcNumber) moved to AllocatedPCsTab.jsx
 
   // Search & Filters for Roster & Grading
-  const [rosterSearch, setRosterSearch] = useState('');
-  const [batchFilter, setBatchFilter] = useState('All');
+  // (rosterSearch and batchFilter moved to BatchesTab.jsx)
 
   // QR Generator Modal State
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
@@ -101,22 +105,7 @@ export default function FacultyDashboard({
     }
   ]);
 
-  // Interactive Student Grades & Attendance State
-  const [studentGrades, setStudentGrades] = useState(
-    initialStudents.reduce((acc, s) => ({ ...acc, [s.id]: s.gpa }), {})
-  );
-  const [studentAttendance, setStudentAttendance] = useState(
-    initialStudents.reduce((acc, s) => ({ ...acc, [s.id]: s.attendance }), {})
-  );
-
-  // Sync attendance state whenever central students prop updates
-  useEffect(() => {
-    if (initialStudents && initialStudents.length > 0) {
-      setStudentAttendance(
-        initialStudents.reduce((acc, s) => ({ ...acc, [s.id]: s.attendance }), {})
-      );
-    }
-  }, [initialStudents]);
+  // Removed local studentGrades and studentAttendance states to use live Supabase students prop directly.
 
   // PR Reviews State
   const [prs, setPrs] = useState([
@@ -172,7 +161,86 @@ class StudentTerminal(models.Model):
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const currentFaculty = faculty.find((f) => f.id === selectedFacultyId) || faculty[0];
+  // Student Submissions State: { [assignmentId]: { [studentId]: { submitted, submittedAt, fileNote, grade } } }
+  const [submissions, setSubmissions] = useState(() => {
+    const init = {};
+    initialAssignments.forEach((a) => {
+      init[a.id] = {};
+      initialStudents.forEach((s, idx) => {
+        // Simulate some students already submitted
+        const didSubmit = idx < (a.submissions || 0);
+        init[a.id][s.id] = {
+          submitted: didSubmit,
+          submittedAt: didSubmit ? `Oct ${18 + idx}, 2024 • ${9 + idx}:${idx * 7 % 60 < 10 ? '0' : ''}${idx * 7 % 60} AM` : null,
+          fileNote: didSubmit ? 'Submitted via Portal' : null,
+          grade: null
+        };
+      });
+    });
+    return init;
+  });
+
+  const [newAssignmentOpen, setNewAssignmentOpen] = useState(false);
+  const [newAssignment, setNewAssignment] = useState({ title: '', dueDate: '', description: '' });
+  const [localAssignments, setLocalAssignments] = useState(initialAssignments);
+
+  const handleToggleSubmission = (assignmentId, studentId) => {
+    setSubmissions((prev) => {
+      const current = prev[assignmentId]?.[studentId] || {};
+      const nowSubmitted = !current.submitted;
+      return {
+        ...prev,
+        [assignmentId]: {
+          ...prev[assignmentId],
+          [studentId]: {
+            ...current,
+            submitted: nowSubmitted,
+            submittedAt: nowSubmitted ? new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : null,
+            fileNote: nowSubmitted ? 'Manually marked by Faculty' : null
+          }
+        }
+      };
+    });
+    const student = initialStudents.find((s) => s.id === studentId);
+    const assignment = localAssignments.find((a) => a.id === assignmentId);
+    showToast(`${student?.name || studentId} marked as submitted for "${assignment?.title || assignmentId}"`);
+  };
+
+  const handleSubmissionGrade = (assignmentId, studentId, grade) => {
+    setSubmissions((prev) => ({
+      ...prev,
+      [assignmentId]: {
+        ...prev[assignmentId],
+        [studentId]: { ...prev[assignmentId]?.[studentId], grade }
+      }
+    }));
+  };
+
+  const handleAddAssignment = (e) => {
+    e.preventDefault();
+    if (!newAssignment.title.trim()) return;
+    const created = {
+      id: `ASM-${Date.now()}`,
+      title: newAssignment.title.trim(),
+      course: currentFaculty.subject,
+      dueDate: newAssignment.dueDate || 'TBD',
+      description: newAssignment.description.trim(),
+      submissions: 0,
+      total: facultyStudents.length,
+      status: 'Active'
+    };
+    setLocalAssignments((prev) => [created, ...prev]);
+    setSubmissions((prev) => {
+      const studentEntries = {};
+      facultyStudents.forEach((s) => { studentEntries[s.id] = { submitted: false, submittedAt: null, fileNote: null, grade: null }; });
+      return { ...prev, [created.id]: studentEntries };
+    });
+    setNewAssignment({ title: '', dueDate: '', description: '' });
+    setNewAssignmentOpen(false);
+    showToast(`Assignment "${created.title}" published to ${facultyStudents.length} student(s)!`);
+  };
+
+  // Extracted SubmissionsTab to separate file
 
   // 60-second timer countdown logic for QR generator
   useEffect(() => {
@@ -212,7 +280,8 @@ class StudentTerminal(models.Model):
   };
 
   const handleGradeChange = (studentId, newGrade) => {
-    setStudentGrades((prev) => ({ ...prev, [studentId]: newGrade }));
+    // Need to wire this to Supabase later
+    // setStudentGrades((prev) => ({ ...prev, [studentId]: newGrade }));
     const student = initialStudents.find((s) => s.id === studentId);
     showToast(`Grade for ${student ? student.name : studentId} updated to ${newGrade}`);
   };
@@ -221,11 +290,6 @@ class StudentTerminal(models.Model):
     if (onMarkStudentAttendance) {
       onMarkStudentAttendance(studentId, 'present');
     }
-    setStudentAttendance((prev) => {
-      const current = prev[studentId] || 85;
-      const nextVal = Math.min(100, current + 2);
-      return { ...prev, [studentId]: nextVal };
-    });
     const student = initialStudents.find((s) => s.id === studentId);
     showToast(`Marked Present: ${student ? student.name : studentId} (+2% attendance)`);
   };
@@ -234,11 +298,6 @@ class StudentTerminal(models.Model):
     if (onMarkStudentAttendance) {
       onMarkStudentAttendance(studentId, 'absent');
     }
-    setStudentAttendance((prev) => {
-      const current = prev[studentId] || 85;
-      const nextVal = Math.max(0, current - 2);
-      return { ...prev, [studentId]: nextVal };
-    });
     const student = initialStudents.find((s) => s.id === studentId);
     showToast(`Marked Absent: ${student ? student.name : studentId} (-2% attendance)`);
   };
@@ -288,96 +347,15 @@ class StudentTerminal(models.Model):
     );
   };
 
-  const filteredStudents = initialStudents.filter((s) => {
-    const matchesSearch = s.name.toLowerCase().includes(rosterSearch.toLowerCase()) || s.id.toLowerCase().includes(rosterSearch.toLowerCase());
-    const matchesBatch = batchFilter === 'All' || s.batch === batchFilter;
-    return matchesSearch && matchesBatch;
+  // Students belonging to this faculty's assigned batches
+  const facultyStudents = initialStudents.filter((s) => {
+    if (!currentFaculty?.assignedBatches?.length) return true; // Show all if no batches assigned yet
+    return currentFaculty.assignedBatches.some((b) => s.batch?.startsWith(b));
   });
 
-  const activeLabTerminals = pcTerminals.filter((t) => {
-    if (!t.labId) return false;
-    return t.labId.replace('-', ' ').toLowerCase() === selectedLabId.toLowerCase() || t.labId === selectedLabId;
-  });
-  const currentSeat = activeLabTerminals.find((t) => t.pcNumber === selectedPcNumber) || activeLabTerminals[0] || null;
+  // (filteredStudents logic moved to BatchesTab.jsx)
 
-  // Realtime PC terminal messages for selected terminal
-  const activePcMessages = pcMessages.filter(
-    (m) => m.labId === selectedLabId && m.pcNumber === selectedPcNumber
-  );
-
-  const handleSendTerminalMessageSubmit = (e) => {
-    e.preventDefault();
-    if (!terminalChatInput.trim() || !currentSeat) return;
-
-    const newMsg = {
-      id: `MSG-PC-${Date.now()}`,
-      labId: selectedLabId,
-      pcNumber: currentSeat.pcNumber,
-      studentId: currentSeat.studentId || null,
-      sender: 'Faculty',
-      senderName: currentFaculty?.name || 'Prof. Amit Verma',
-      senderRole: 'Faculty Instructor',
-      text: terminalChatInput.trim(),
-      type: 'chat',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
-
-    if (onSendPcMessage) onSendPcMessage(newMsg);
-    setTerminalChatInput('');
-  };
-
-  const handlePingSelectedPc = () => {
-    if (!currentSeat) return;
-    const newMsg = {
-      id: `MSG-PING-${Date.now()}`,
-      labId: selectedLabId,
-      pcNumber: currentSeat.pcNumber,
-      studentId: currentSeat.studentId || null,
-      sender: 'Faculty',
-      senderName: currentFaculty?.name || 'Prof. Amit Verma',
-      senderRole: 'Faculty Instructor',
-      text: `⚡ PING ALERT: Prof. ${currentFaculty?.name} pinged PC-${currentSeat.pcNumber < 10 ? `0${currentSeat.pcNumber}` : currentSeat.pcNumber}. Please acknowledge screen check!`,
-      type: 'ping',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
-
-    if (onSendPcMessage) onSendPcMessage(newMsg);
-    showToast(`⚡ Diagnostic Ping sent to PC-${currentSeat.pcNumber < 10 ? `0${currentSeat.pcNumber}` : currentSeat.pcNumber}!`);
-  };
-
-  const handleResolveHelpRequest = () => {
-    if (!currentSeat) return;
-    if (onUpdatePcTerminal) {
-      onUpdatePcTerminal({ ...currentSeat, helpRequested: false });
-    }
-    showToast(`✋ Help request resolved for PC-${currentSeat.pcNumber}!`);
-  };
-
-  const handleSendLabBroadcastSubmit = (e) => {
-    e.preventDefault();
-    if (!labBroadcastInput.trim()) return;
-
-    const occupiedTerminals = activeLabTerminals.filter((t) => t.status === 'Occupied');
-    occupiedTerminals.forEach((t) => {
-      const bMsg = {
-        id: `MSG-BCAST-${Date.now()}-${t.pcNumber}`,
-        labId: selectedLabId,
-        pcNumber: t.pcNumber,
-        studentId: t.studentId,
-        sender: 'Faculty',
-        senderName: `Prof. ${currentFaculty?.name || 'Instructor'}`,
-        senderRole: 'Faculty Instructor',
-        text: `📢 [LAB BROADCAST]: ${labBroadcastInput.trim()}`,
-        type: 'broadcast',
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-      if (onSendPcMessage) onSendPcMessage(bMsg);
-    });
-
-    setIsLabBroadcastModalOpen(false);
-    setLabBroadcastInput('');
-    showToast(`📢 Realtime Broadcast sent to all ${occupiedTerminals.length} occupied PCs in ${selectedLabId}!`);
-  };
+  // (activeLabTerminals and PC Terminal Handlers moved to AllocatedPCsTab.jsx)
 
   return (
     <div className="flex flex-col gap-6 pb-12 font-sans">
@@ -437,7 +415,7 @@ class StudentTerminal(models.Model):
           </button>
 
           {/* Availability Switcher */}
-          <div className="bg-slate-100 p-1 rounded-2xl border border-slate-200 flex items-center gap-1">
+          <div className="bg-slate-100 p-1 rounded-2xl border border-slate-200 flex flex-wrap items-center gap-1">
             {[
               { label: 'In Lab', val: 'In Session', color: 'bg-emerald-600 text-white' },
               { label: 'Ready', val: 'Ready', color: 'bg-blue-600 text-white' },
@@ -455,7 +433,7 @@ class StudentTerminal(models.Model):
                   }
                   showToast(`Status updated to "${st.label}" & broadcasted live to Admin!`);
                 }}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                   facultyStatus === st.val
                     ? `${st.color} shadow-xs`
                     : 'text-slate-600 hover:text-slate-900'
@@ -689,733 +667,54 @@ class StudentTerminal(models.Model):
 
       {/* TAB 1: OVERVIEW & SCHEDULE */}
       {activeTab === 'overview' && (
-        <div className="flex flex-col gap-6">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs hover:shadow-md transition-all">
-              <div className="flex items-center justify-between text-slate-400">
-                <span className="text-[11px] font-bold uppercase tracking-wider">Today Punch</span>
-                <Clock className="w-4 h-4 text-emerald-600" />
-              </div>
-              <div className="text-2xl font-extrabold text-slate-900 mt-2">{currentFaculty.punchTime}</div>
-              <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-semibold mt-1">
-                <CheckCircle2 className="w-3.5 h-3.5" /> Checked In • {currentFaculty.status}
-              </span>
-            </div>
-
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs hover:shadow-md transition-all">
-              <div className="flex items-center justify-between text-slate-400">
-                <span className="text-[11px] font-bold uppercase tracking-wider">Assigned Batches</span>
-                <Users className="w-4 h-4 text-indigo-600" />
-              </div>
-              <div className="text-2xl font-extrabold text-slate-900 mt-2">{currentFaculty.assignedBatches.length} Batches</div>
-              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                {currentFaculty.assignedBatches.map((b) => (
-                  <span key={b} className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[10px] font-bold border border-indigo-100">
-                    {b}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <div 
-              onClick={() => setActiveTab('complaints-requests')}
-              className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs hover:shadow-md transition-all cursor-pointer group"
-            >
-              <div className="flex items-center justify-between text-slate-400">
-                <span className="text-[11px] font-bold uppercase tracking-wider">Complaints & Requests Desk</span>
-                <MessageSquare className="w-4 h-4 text-indigo-600 group-hover:scale-110 transition-transform" />
-              </div>
-              <div className="text-2xl font-extrabold text-indigo-600 mt-2">
-                {complaintsAndRequests.filter(c => c.senderType === 'Faculty').length} Record(s)
-              </div>
-              <span className="text-[11px] text-indigo-600 font-semibold mt-1 flex items-center gap-1 group-hover:underline">
-                Open Realtime Communication Desk →
-              </span>
-            </div>
-          </div>
-
-          {/* Allocated PCs Quick Summary Banner */}
-          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-2xl p-6 shadow-xs border border-slate-200 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shadow-2xs">
-                <Monitor className="w-6 h-6" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white">Allocated PC Terminals Overview</h3>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[11px] font-semibold border border-emerald-200 dark:border-emerald-800">
-                    16 / 20 Active in {selectedLabId}
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Real-time workstation seat mapping, student login tracking, hardware status, and ping control.
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => setActiveTab('allocated-pc')}
-              className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all flex items-center gap-2 shadow-xs self-start md:self-auto cursor-pointer"
-            >
-              <span>View Allocated PCs Tab</span>
-              <ArrowUpRight className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* OFFICIAL WEEKLY SCHEDULE DECIDED BY ADMIN */}
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col gap-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-extrabold text-slate-900 dark:text-white text-lg flex items-center gap-2">
-                    Weekly Class Timetable & Lab Schedule
-                    <Calendar className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                  </h3>
-                  <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-[10px] font-extrabold border border-indigo-200 dark:border-indigo-800 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-indigo-500" /> Decided & Published by Admin Desk
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Official weekly lecture allocations and lab room assignments for <strong>{currentFaculty.name}</strong>
-                </p>
-              </div>
-
-              {/* Day Selector Tabs */}
-              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl overflow-x-auto">
-                {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'All Days'].map((day) => (
-                  <button
-                    key={day}
-                    onClick={() => setSelectedScheduleDay(day)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-                      selectedScheduleDay === day
-                        ? 'bg-indigo-600 text-white shadow-xs'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                    }`}
-                  >
-                    {day}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Filtered Schedule Sessions */}
-            {(() => {
-              const allItems = Object.entries(weeklySchedule || {}).map(([key, val]) => {
-                const [day, ...slotParts] = key.split('-');
-                return { key, day, timeSlot: slotParts.join('-'), ...val };
-              });
-
-              const facultyItems = allItems.filter(
-                (item) =>
-                  item.facultyId === currentFaculty.id ||
-                  item.facultyName?.toLowerCase() === currentFaculty.name?.toLowerCase() ||
-                  selectedFacultyId === item.facultyId
-              );
-
-              const displayItems = facultyItems.filter(
-                (item) => selectedScheduleDay === 'All Days' || item.day === selectedScheduleDay
-              );
-
-              if (displayItems.length === 0) {
-                return (
-                  <div className="p-8 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 text-center flex flex-col items-center gap-2">
-                    <Calendar className="w-8 h-8 text-slate-400" />
-                    <h4 className="font-bold text-xs text-slate-700 dark:text-slate-300">No Classes Assigned on {selectedScheduleDay}</h4>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 max-w-sm">
-                      Admin has not scheduled any lecture sessions for {currentFaculty.name} on {selectedScheduleDay}. Check other days or contact Admin Desk.
-                    </p>
-                  </div>
-                );
-              }
-
-              return (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {displayItems.map((item) => (
-                    <div
-                      key={item.key}
-                      className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 flex flex-col justify-between gap-3 hover:border-indigo-300 dark:hover:border-indigo-600 transition-all shadow-2xs"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="px-2.5 py-1 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200 text-[10px] font-extrabold flex items-center gap-1">
-                          <Clock className="w-3 h-3" /> {item.day} • {item.timeSlot}
-                        </span>
-                        <span className="px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold">
-                          {item.lab || 'Lab 01'}
-                        </span>
-                      </div>
-
-                      <div>
-                        <h4 className="font-extrabold text-sm text-slate-900 dark:text-white">{item.course}</h4>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-2">
-                          <span>Batch: <strong className="text-slate-700 dark:text-slate-200 font-mono">{item.batch}</strong></span>
-                        </p>
-                      </div>
-
-                      <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between">
-                        <span className="text-[10px] text-slate-400 font-mono">Assigned by Admin</span>
-                        <button
-                          onClick={handleGenerateQrCode}
-                          className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold transition-all shadow-2xs flex items-center gap-1 cursor-pointer"
-                        >
-                          <QrCode className="w-3.5 h-3.5" />
-                          <span>Generate QR</span>
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              );
-            })()}
-
-            {/* 6-Day Full Weekly Timetable Matrix View */}
-            <div className="mt-2 pt-4 border-t border-slate-100 dark:border-slate-800">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                  Full 6-Day Weekly Matrix Overview ({currentFaculty.name})
-                </span>
-                <span className="text-[10px] text-slate-400 font-mono">Mon - Sat Complete Schedule</span>
-              </div>
-              <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-700 whitespace-nowrap">
-                      <th className="p-3 border-r border-slate-200 dark:border-slate-700">Day</th>
-                      <th className="p-3 border-r border-slate-200 dark:border-slate-700">Assigned Session</th>
-                      <th className="p-3 border-r border-slate-200 dark:border-slate-700">Time Slot</th>
-                      <th className="p-3 border-r border-slate-200 dark:border-slate-700">Batch ID</th>
-                      <th className="p-3">Assigned Lab</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
-                    {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((day) => {
-                      const dayItems = Object.entries(weeklySchedule || {}).filter(([key, val]) => {
-                        const [itemDay] = key.split('-');
-                        return itemDay === day && (val.facultyId === currentFaculty.id || val.facultyName?.toLowerCase() === currentFaculty.name?.toLowerCase());
-                      });
-
-                      if (dayItems.length === 0) {
-                        return (
-                          <tr key={day} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 text-slate-400">
-                            <td className="p-3 font-bold text-slate-700 dark:text-slate-300 border-r border-slate-100 dark:border-slate-800">{day}</td>
-                            <td colSpan={4} className="p-3 italic text-[11px]">No classes assigned by Admin</td>
-                          </tr>
-                        );
-                      }
-
-                      return dayItems.map(([key, val], idx) => {
-                        const timeSlot = key.split('-').slice(1).join('-');
-                        return (
-                          <tr key={key} className="hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
-                            {idx === 0 && (
-                              <td rowSpan={dayItems.length} className="p-3 font-bold text-slate-900 dark:text-white border-r border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-800/30 whitespace-nowrap">
-                                {day}
-                              </td>
-                            )}
-                            <td className="p-3 font-extrabold text-indigo-700 dark:text-indigo-300 border-r border-slate-100 dark:border-slate-800 whitespace-nowrap">{val.course}</td>
-                            <td className="p-3 font-mono text-slate-600 dark:text-slate-300 border-r border-slate-100 dark:border-slate-800 whitespace-nowrap">{timeSlot}</td>
-                            <td className="p-3 font-bold text-slate-700 dark:text-slate-300 border-r border-slate-100 dark:border-slate-800 whitespace-nowrap">{val.batch}</td>
-                            <td className="p-3 font-bold text-emerald-700 dark:text-emerald-400 whitespace-nowrap">{val.lab}</td>
-                          </tr>
-                        );
-                      });
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          {/* EMBEDDED ACADEMIC & HOLIDAY CALENDAR WIDGET */}
-          <div className="mt-2">
-            <CalendarView embedded={true} userRole="faculty" />
-          </div>
-        </div>
+        <OverviewTab
+          currentFaculty={currentFaculty}
+          complaintsAndRequests={complaintsAndRequests}
+          setActiveTab={setActiveTab}
+          selectedLabId={selectedLabId}
+          weeklySchedule={weeklySchedule}
+          selectedScheduleDay={selectedScheduleDay}
+          setSelectedScheduleDay={setSelectedScheduleDay}
+          selectedFacultyId={selectedFacultyId}
+          handleGenerateQrCode={handleGenerateQrCode}
+        />
       )}
 
       {/* TAB: ALLOCATED PCS & REALTIME COMMUNICATION */}
       {activeTab === 'allocated-pc' && (
-        <div className="flex flex-col gap-6">
-          {/* Top Stat Cards for PC Allocation */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
-              <div className="flex items-center justify-between text-slate-400">
-                <span className="text-[11px] font-bold uppercase tracking-wider">Total Lab PCs</span>
-                <Monitor className="w-4 h-4 text-indigo-600" />
-              </div>
-              <div className="text-2xl font-extrabold text-slate-900 mt-2">80 Terminals</div>
-              <span className="text-[11px] text-slate-500 mt-1 block">Across 4 Computer Labs</span>
-            </div>
-
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
-              <div className="flex items-center justify-between text-slate-400">
-                <span className="text-[11px] font-bold uppercase tracking-wider">Currently Occupied</span>
-                <UserCheck className="w-4 h-4 text-emerald-600" />
-              </div>
-              <div className="text-2xl font-extrabold text-emerald-600 mt-2">
-                {activeLabTerminals.filter(t => t.status === 'Occupied').length} / {activeLabTerminals.length || 20} PCs
-              </div>
-              <span className="text-[11px] text-emerald-600 font-semibold mt-1 block">In {selectedLabId} Workstations</span>
-            </div>
-
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
-              <div className="flex items-center justify-between text-slate-400">
-                <span className="text-[11px] font-bold uppercase tracking-wider">Vacant Terminals</span>
-                <CheckCircle2 className="w-4 h-4 text-sky-600" />
-              </div>
-              <div className="text-2xl font-extrabold text-slate-900 mt-2">
-                {activeLabTerminals.filter(t => t.status === 'Vacant').length} PCs Ready
-              </div>
-              <span className="text-[11px] text-sky-600 font-medium mt-1 block">Available for walk-in lab access</span>
-            </div>
-
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
-              <div className="flex items-center justify-between text-slate-400">
-                <span className="text-[11px] font-bold uppercase tracking-wider">Student Help Requests</span>
-                <AlertCircle className="w-4 h-4 text-rose-500 animate-pulse" />
-              </div>
-              <div className="text-2xl font-extrabold text-rose-600 mt-2">
-                {activeLabTerminals.filter(t => t.helpRequested).length} Active Hand(s)
-              </div>
-              <span className="text-[11px] text-rose-600 font-medium mt-1 block">Students awaiting instructor assistance</span>
-            </div>
-          </div>
-
-          {/* Interactive Live Lab Terminal Radar Map */}
-          <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-6 flex flex-col gap-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-lg font-bold text-slate-900">Allocated PC Workstations & Live Realtime Radar</h3>
-                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Supabase Realtime Active
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 mt-0.5">Click any PC terminal node to open direct two-way live communication stream with assigned student</p>
-              </div>
-
-              <div className="flex flex-col xs:flex-row items-stretch xs:items-center gap-2">
-                <button
-                  onClick={() => setIsLabBroadcastModalOpen(true)}
-                  className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
-                >
-                  <Send className="w-3.5 h-3.5 shrink-0" />
-                  <span>Broadcast to All PCs</span>
-                </button>
-
-                {/* Lab selector — scrollable on mobile to prevent overflow */}
-                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl overflow-x-auto">
-                  {labs.map((lab) => (
-                    <button
-                      key={lab.id}
-                      onClick={() => {
-                        setSelectedLabId(lab.id);
-                        setSelectedPcNumber(1);
-                      }}
-                      className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
-                        selectedLabId === lab.id
-                          ? 'bg-indigo-600 text-white shadow-xs'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      {lab.id}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Legend bar — wraps gracefully on mobile instead of overflowing */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-medium text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
-              <span className="font-bold text-slate-700 w-full xs:w-auto">Seat Status Legend:</span>
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-emerald-500 shrink-0"></span>
-                <span>Occupied ({activeLabTerminals.filter(s => s.status === 'Occupied').length})</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-amber-500 animate-pulse shrink-0"></span>
-                <span>✋ Help ({activeLabTerminals.filter(s => s.helpRequested).length})</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-slate-200 border border-slate-300 shrink-0"></span>
-                <span>Vacant ({activeLabTerminals.filter(s => s.status === 'Vacant').length})</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-indigo-600 shrink-0"></span>
-                <span>Selected</span>
-              </div>
-            </div>
-
-            {/* PC Nodes Grid */}
-            <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-5 md:grid-cols-10 gap-2 sm:gap-3 pt-2">
-              {activeLabTerminals.map((seat) => {
-                const isSelected = currentSeat?.pcNumber === seat.pcNumber;
-                const isHelp = seat.helpRequested;
-                const isOccupied = seat.status === 'Occupied';
-                return (
-                  <button
-                    key={seat.id || seat.pcNumber}
-                    onClick={() => setSelectedPcNumber(seat.pcNumber)}
-                    className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all relative cursor-pointer ${
-                      isSelected
-                        ? 'bg-indigo-600 text-white border-indigo-700 ring-2 ring-indigo-400/40 scale-105 shadow-md'
-                        : isHelp
-                        ? 'bg-amber-50 border-amber-400 text-amber-900 ring-2 ring-amber-400/50 animate-pulse'
-                        : isOccupied
-                        ? 'bg-emerald-50/80 border-emerald-200 hover:bg-emerald-100 text-emerald-900'
-                        : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-400'
-                    }`}
-                  >
-                    {isHelp && (
-                      <span className="absolute -top-1.5 -right-1.5 bg-rose-600 text-white text-[9px] font-black px-1 rounded-full shadow-xs">
-                        ✋
-                      </span>
-                    )}
-                    <Monitor className={`w-4 h-4 ${isSelected ? 'text-white' : isHelp ? 'text-amber-600' : isOccupied ? 'text-emerald-600' : 'text-slate-400'}`} />
-                    <span className="text-[11px] font-mono font-bold">{seat.pcName || `PC-${seat.pcNumber}`}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Realtime Direct Terminal Communication & Control Panel */}
-            {currentSeat ? (
-              <div className="mt-3 p-5 rounded-2xl bg-slate-50/90 border border-slate-200 flex flex-col gap-4 animate-fadeIn shadow-xs">
-                {/* Seat Info Header */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-slate-200/80">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white font-mono font-bold flex items-center justify-center text-base shadow-sm shrink-0">
-                      {currentSeat.pcName || `PC-${currentSeat.pcNumber}`}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-extrabold text-slate-900 text-base">
-                          {currentSeat.status === 'Occupied' && currentSeat.studentName ? currentSeat.studentName : 'Terminal Vacant'}
-                        </span>
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                          currentSeat.status === 'Occupied' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'
-                        }`}>
-                          {currentSeat.status === 'Occupied' ? 'IN SESSION' : 'AVAILABLE'}
-                        </span>
-                        {currentSeat.helpRequested && (
-                          <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-black animate-pulse flex items-center gap-1">
-                            ✋ HELP REQUESTED
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-slate-500 text-xs mt-0.5 font-medium">
-                        {currentSeat.status === 'Occupied' && currentSeat.studentName 
-                          ? `Roll #: ${currentSeat.studentId} • ${currentSeat.course} • Batch: ${currentSeat.batch} • IP: ${currentSeat.ipAddress || '192.168.1.100'} • Logged in: ${currentSeat.loginTime || '09:30 AM'}`
-                          : 'No student logged in at this workstation seat.'}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Quick Controls */}
-                  {currentSeat.status === 'Occupied' && (
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <button
-                        onClick={handlePingSelectedPc}
-                        className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all text-xs shadow-xs flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <Zap className="w-3.5 h-3.5 text-amber-300" />
-                        <span>Ping PC</span>
-                      </button>
-
-                      {currentSeat.helpRequested && (
-                        <button
-                          onClick={handleResolveHelpRequest}
-                          className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all text-xs shadow-xs flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>Clear Help Hand</span>
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Realtime Live Terminal Messages Stream */}
-                {currentSeat.status === 'Occupied' ? (
-                  <div className="flex flex-col gap-3">
-                    <div className="flex items-center justify-between text-xs font-bold text-slate-700">
-                      <span className="flex items-center gap-1.5">
-                        <MessageSquare className="w-4 h-4 text-indigo-600" />
-                        Live Terminal Stream ({currentSeat.pcName || `PC-${currentSeat.pcNumber}`} &bull; {currentSeat.studentName})
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-mono">SUPABASE REALTIME CHAT CHANNEL</span>
-                    </div>
-
-                    {/* Messages Container */}
-                    <div className="bg-white p-3.5 rounded-2xl border border-slate-200 max-h-56 overflow-y-auto flex flex-col gap-2.5">
-                      {activePcMessages.length === 0 ? (
-                        <div className="py-6 text-center text-xs text-slate-400 italic">
-                          No messages exchanged yet with {currentSeat.studentName} at {currentSeat.pcName}. Type a message or click "Ping PC" below to start communication.
-                        </div>
-                      ) : (
-                        activePcMessages.map((msg) => {
-                          const isFacultySender = msg.sender === 'Faculty';
-                          const isPing = msg.type === 'ping';
-                          const isHelp = msg.type === 'help_request';
-                          return (
-                            <div
-                              key={msg.id}
-                              className={`p-3 rounded-xl text-xs flex flex-col gap-1 border ${
-                                isPing
-                                  ? 'bg-indigo-50 border-indigo-200 text-indigo-900'
-                                  : isHelp
-                                  ? 'bg-amber-50 border-amber-300 text-amber-900'
-                                  : isFacultySender
-                                  ? 'bg-blue-50/80 border-blue-200 self-end max-w-[85%]'
-                                  : 'bg-slate-50 border-slate-200 self-start max-w-[85%]'
-                              }`}
-                            >
-                              <div className="flex items-center justify-between gap-3 text-[10px] font-bold">
-                                <span className={isFacultySender ? 'text-blue-700' : 'text-emerald-700'}>
-                                  {msg.senderName} ({msg.senderRole})
-                                </span>
-                                <span className="text-slate-400 font-mono">{msg.timestamp}</span>
-                              </div>
-                              <p className="text-slate-800 font-medium leading-relaxed">{msg.text}</p>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-
-                    {/* Input Form */}
-                    <form onSubmit={handleSendTerminalMessageSubmit} className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={terminalChatInput}
-                        onChange={(e) => setTerminalChatInput(e.target.value)}
-                        placeholder={`Send live instruction or note to ${currentSeat.studentName} at ${currentSeat.pcName}...`}
-                        className="flex-1 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
-                      />
-                      <button
-                        type="submit"
-                        disabled={!terminalChatInput.trim()}
-                        className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <Send className="w-3.5 h-3.5" />
-                        <span>Send to PC</span>
-                      </button>
-                    </form>
-                  </div>
-                ) : (
-                  <div className="py-6 text-center text-xs text-slate-500 font-medium">
-                    This terminal seat ({currentSeat.pcName}) is currently vacant. Assign a student or select an occupied seat to chat.
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/60 text-center text-xs text-slate-500">
-                Click any PC terminal node above to inspect workstation details, assigned student info, and open direct communication.
-              </div>
-            )}
-          </div>
-        </div>
+        <AllocatedPCsTab
+          currentFaculty={currentFaculty}
+          selectedLabId={selectedLabId}
+          setSelectedLabId={setSelectedLabId}
+          labs={labs}
+          pcTerminals={pcTerminals}
+          pcMessages={pcMessages}
+          onSendPcMessage={onSendPcMessage}
+          onUpdatePcTerminal={onUpdatePcTerminal}
+          showToast={showToast}
+        />
       )}
 
-      {/* Broadcast Modal for Faculty */}
-      {isLabBroadcastModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 flex flex-col gap-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-xl bg-amber-500 text-white flex items-center justify-center">
-                  <Send className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-sm text-slate-900">Broadcast Message to All PCs in {selectedLabId}</h3>
-                  <p className="text-[11px] text-slate-500">Sends realtime broadcast alert to all logged-in students in this lab</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsLabBroadcastModalOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSendLabBroadcastSubmit} className="flex flex-col gap-4">
-              <div>
-                <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">
-                  Broadcast Alert Message:
-                </label>
-                <textarea
-                  rows={3}
-                  required
-                  value={labBroadcastInput}
-                  onChange={(e) => setLabBroadcastInput(e.target.value)}
-                  placeholder="e.g. Attention students: Practical submission deadline is in 15 minutes. Save all project files!"
-                  className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsLabBroadcastModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Send Realtime Broadcast</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 2: MY BATCHES & ROSTER */}
       {activeTab === 'batches' && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden flex flex-col">
-          <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
-            <div>
-              <h3 className="font-bold text-slate-900 text-base">Enrolled Students Roster</h3>
-              <p className="text-xs text-slate-500 mt-0.5">Showing students assigned to {currentFaculty.subject} batches</p>
-            </div>
+        <BatchesTab
+          currentFaculty={currentFaculty}
+          facultyStudents={facultyStudents}
+          onMarkPresent={handleMarkPresent}
+          onMarkAbsent={handleMarkAbsent}
+        />
+      )}
 
-            <div className="flex flex-col xs:flex-row items-stretch xs:items-center gap-2 sm:gap-3">
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
-                <input
-                  type="text"
-                  placeholder="Search student or roll #..."
-                  value={rosterSearch}
-                  onChange={(e) => setRosterSearch(e.target.value)}
-                  className="pl-8 pr-3 py-1.5 bg-slate-100 text-xs font-semibold rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 w-full xs:w-44"
-                />
-              </div>
-
-              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl overflow-x-auto">
-                {['All', 'MERN-B1', 'MERN-B2', 'PYTHON-B1'].map((b) => (
-                  <button
-                    key={b}
-                    onClick={() => setBatchFilter(b)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
-                      batchFilter === b ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    {b}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Desktop table — hidden on mobile */}
-          <div className="hidden sm:block overflow-x-auto w-full">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 text-[11px] text-slate-400 font-bold uppercase tracking-wider whitespace-nowrap">
-                  <th className="py-3 px-4 sm:px-6">Student & Roll #</th>
-                  <th className="py-3 px-4">Batch</th>
-                  <th className="py-3 px-4">Attendance</th>
-                  <th className="py-3 px-4">Grade</th>
-                  <th className="py-3 px-4 hidden md:table-cell">Project</th>
-                  <th className="py-3 px-4 sm:px-6 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-xs">
-                {filteredStudents.map((s) => (
-                  <tr key={s.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3 px-4 sm:px-6 whitespace-nowrap">
-                      <div className="flex items-center gap-2 sm:gap-3">
-                        <img src={s.avatar} alt={s.name} className="w-8 h-8 rounded-full object-cover border border-slate-200 shrink-0" />
-                        <div className="min-w-0">
-                          <span className="font-bold text-slate-900 block leading-tight truncate">{s.name}</span>
-                          <span className="font-mono text-[11px] text-slate-400">{s.id}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 font-semibold text-slate-700 whitespace-nowrap">{s.batch}</td>
-                    <td className="py-3 px-4 font-bold text-emerald-600 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <span>{studentAttendance[s.id] || s.attendance}%</span>
-                        <div className="w-12 bg-slate-200 rounded-full h-1.5 overflow-hidden hidden lg:block">
-                          <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${studentAttendance[s.id] || s.attendance}%` }}></div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-extrabold text-[11px] border border-indigo-100 whitespace-nowrap">
-                        {studentGrades[s.id] || s.gpa}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-slate-600 hidden md:table-cell whitespace-nowrap">{s.projectStatus}</td>
-                    <td className="py-3 px-4 sm:px-6 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-1">
-                        <button 
-                          onClick={() => handleMarkPresent(s.id)}
-                          className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition-colors border border-emerald-200 cursor-pointer"
-                          title="Mark Present (+2%)"
-                        >
-                          <UserCheck className="w-3.5 h-3.5" />
-                        </button>
-                        <button 
-                          onClick={() => handleMarkAbsent(s.id)}
-                          className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 transition-colors border border-rose-200 cursor-pointer"
-                          title="Mark Absent (-2%)"
-                        >
-                          <UserX className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile card list — visible only on small screens */}
-          <div className="sm:hidden flex flex-col divide-y divide-slate-100">
-            {filteredStudents.map((s) => (
-              <div key={s.id} className="p-4 flex flex-col gap-3">
-                <div className="flex items-center gap-3">
-                  <img src={s.avatar} alt={s.name} className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <span className="font-bold text-slate-900 text-sm block leading-tight truncate">{s.name}</span>
-                    <span className="font-mono text-[11px] text-slate-400">{s.id} • {s.batch}</span>
-                  </div>
-                  <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-extrabold text-xs border border-indigo-100 shrink-0">
-                    {studentGrades[s.id] || s.gpa}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-500">Attendance:</span>
-                    <span className="text-xs font-bold text-emerald-600">{studentAttendance[s.id] || s.attendance}%</span>
-                    <div className="w-16 bg-slate-200 rounded-full h-1.5 overflow-hidden">
-                      <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${studentAttendance[s.id] || s.attendance}%` }}></div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => handleMarkPresent(s.id)}
-                      className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[11px] font-bold transition-colors border border-emerald-200 flex items-center gap-1"
-                    >
-                      <UserCheck className="w-3 h-3" /> Present
-                    </button>
-                    <button
-                      onClick={() => handleMarkAbsent(s.id)}
-                      className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-bold transition-colors border border-rose-200 flex items-center gap-1"
-                    >
-                      <UserX className="w-3 h-3" /> Absent
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+      {/* TAB: STUDENT SUBMISSIONS */}
+      {activeTab === 'submissions' && (
+        <SubmissionsTab
+          assignments={initialAssignments}
+          students={initialStudents}
+          facultyStudents={facultyStudents}
+          currentFaculty={currentFaculty}
+          studentGrades={studentGrades}
+          onGradeChange={handleGradeChange}
+          showToast={showToast}
+        />
       )}
 
       {/* TAB 3: ATTENDANCE & GRADING */}
@@ -1460,83 +759,7 @@ class StudentTerminal(models.Model):
 
       {/* TAB 4: MY SALARY & HONORARIUM */}
       {activeTab === 'salary' && (
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col gap-6 font-sans">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-            <div>
-              <h3 className="font-bold text-slate-900 text-base">Instructor Earnings & Honorarium Statement</h3>
-              <p className="text-xs text-slate-500 mt-0.5">Detailed breakdown for Oct 2024 academic cycle ({currentFaculty.name})</p>
-            </div>
-            <Suspense fallback={<span className="text-xs text-slate-400">Preparing PDF…</span>}>
-              <PDFDownloadButton
-                document={<FacultyPayslipPDF faculty={currentFaculty} websiteConfig={websiteConfig} pdfConfig={pdfConfig} />}
-                fileName={`Payslip_${currentFaculty?.name ? currentFaculty.name.replace(/\s+/g, '_') : 'Faculty'}_Oct2024.pdf`}
-                buttonText="Download Payslip PDF"
-                variant="indigo"
-              />
-            </Suspense>
-          </div>
-
-          {/* Real-time Salary Disbursement Status Banner */}
-          {currentFaculty.disbursed ? (
-            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-emerald-600 text-white shrink-0">
-                  <CheckCircle2 className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-extrabold text-emerald-900 text-sm">Monthly Salary Disbursed & Deposited</span>
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-200/80 text-emerald-900 text-[10px] font-black uppercase">
-                      Bank Transfer Cleared
-                    </span>
-                  </div>
-                  <p className="text-emerald-700 font-medium mt-0.5">
-                    Your net earnings of <strong>₹{((currentFaculty.salary || 0) + (currentFaculty.honorarium || 0)).toLocaleString('en-IN')}</strong> have been approved by Finance Desk and transferred to your registered bank account.
-                  </p>
-                </div>
-              </div>
-              <span className="font-mono text-emerald-800 text-[11px] font-bold bg-white/80 px-3 py-1.5 rounded-xl border border-emerald-200 shrink-0">
-                TXN #NEFT-OCT-8842
-              </span>
-            </div>
-          ) : (
-            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-amber-500 text-white shrink-0">
-                  <AlertCircle className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-extrabold text-amber-950 text-sm">Payout Clearance Pending</span>
-                    <span className="px-2 py-0.5 rounded-full bg-amber-200/80 text-amber-900 text-[10px] font-black uppercase">
-                      Under Finance Review
-                    </span>
-                  </div>
-                  <p className="text-amber-800 font-medium mt-0.5">
-                    Your October 2024 earnings of <strong>₹{((currentFaculty.salary || 0) + (currentFaculty.honorarium || 0)).toLocaleString('en-IN')}</strong> are currently pending clearance at the Finance Command Desk.
-                  </p>
-                </div>
-              </div>
-              <span className="font-mono text-amber-900 text-[11px] font-bold bg-white/80 px-3 py-1.5 rounded-xl border border-amber-200 shrink-0">
-                STATUS: PENDING APPROVAL
-              </span>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200">
-              <span className="text-slate-400 font-bold uppercase text-[11px]">Monthly Base Salary</span>
-              <div className="text-3xl font-extrabold text-slate-900 mt-1">₹{(currentFaculty.salary || 0).toLocaleString('en-IN')}</div>
-              <p className="text-xs text-slate-500 mt-2">Fixed monthly pay contract</p>
-            </div>
-
-            <div className="p-5 rounded-2xl bg-indigo-50/60 border border-indigo-100">
-              <span className="text-indigo-700 font-bold uppercase text-[11px]">Lecture & Lab Honorarium</span>
-              <div className="text-3xl font-extrabold text-indigo-700 mt-1">₹{(currentFaculty.honorarium || 0).toLocaleString('en-IN')}</div>
-              <p className="text-xs text-indigo-600 mt-2">Calculated for conducted practical lab sessions</p>
-            </div>
-          </div>
-        </div>
+        <SalaryTab currentFaculty={currentFaculty} />
       )}
 
       {/* TAB 5: ACADEMIC & HOLIDAY CALENDAR */}

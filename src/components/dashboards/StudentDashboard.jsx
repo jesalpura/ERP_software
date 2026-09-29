@@ -44,6 +44,7 @@ export default function StudentDashboard({
   assignments: initialAssignments, 
   activeTab: parentActiveTab, 
   setActiveTab: parentSetActiveTab,
+  user,
   activeQrSession,
   onRecordQrScan,
   complaintsAndRequests = [],
@@ -58,8 +59,18 @@ export default function StudentDashboard({
   const activeTab = parentActiveTab !== undefined ? parentActiveTab : localActiveTab;
   const setActiveTab = parentSetActiveTab || setLocalActiveTab;
 
-  const [selectedStudentId, setSelectedStudentId] = useState('AT-2024-089');
-  const [activeScheduleDay, setActiveScheduleDay] = useState('Today');
+  // Determine current student by email or default to first if not found (or mock)
+  const currentStudentByEmail = students.find(s => s.email === user?.email);
+  const [selectedStudentId, setSelectedStudentId] = useState(currentStudentByEmail ? currentStudentByEmail.id : 'AT-2024-089');
+
+  useEffect(() => {
+    if (currentStudentByEmail) {
+      setSelectedStudentId(currentStudentByEmail.id);
+    }
+  }, [currentStudentByEmail]);
+
+  const activeScheduleDay = 'Today'; // Mock active schedule day if unused or use state
+  const [activeScheduleDayState, setActiveScheduleDay] = useState('Today');
   const [assignmentFilter, setAssignmentFilter] = useState('All');
   const [studentChatInput, setStudentChatInput] = useState('');
 
@@ -324,8 +335,9 @@ export default function StudentDashboard({
   ];
 
   const filteredAssignments = initialAssignments.filter((asm) => {
-    if (assignmentFilter === 'Pending') return asm.dueDate.includes('Oct');
-    if (assignmentFilter === 'Submitted') return !asm.dueDate.includes('Oct');
+    const isSubmitted = !!submissions[asm.id];
+    if (assignmentFilter === 'Pending') return !isSubmitted;
+    if (assignmentFilter === 'Submitted') return isSubmitted;
     return true;
   });
 

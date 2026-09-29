@@ -84,7 +84,7 @@ export default function Header({
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-semibold transition-colors"
             >
               <PlusCircle className="w-3.5 h-3.5" />
-              <span>New Student</span>
+              <span>Assign Faculty</span>
             </button>
             <button
               onClick={onOpenCollectFee}

@@ -55,6 +55,7 @@ export default function Sidebar({
       { id: 'complaints-requests', label: 'Complaints & Requests', icon: MessageSquare },
       { id: 'allocated-pc', label: 'Allocated PCs', icon: Monitor },
       { id: 'batches', label: 'My Batches & Roster', icon: Users },
+      { id: 'submissions', label: 'Student Submissions', icon: BookOpen },
       { id: 'attendance-grading', label: 'Attendance & Grading', icon: CheckSquare },
       { id: 'salary', label: 'Salary & Honorarium', icon: DollarSign },
     ],
